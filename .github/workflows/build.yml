@@ -1,0 +1,68 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: Build Linux (DEB, Tar, AppImage, Snap)
+        run: |
+          npx expo export
+          npx electron-builder --linux deb tar.gz AppImage snap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: SmartNotes-Linux
+          path: |
+            electron-dist/*.deb
+            electron-dist/*.AppImage
+            electron-dist/*.snap
+            electron-dist/*.tar.gz
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Windows (EXE)
+        run: npm run build:windows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: SmartNotes-Windows
+          path: electron-dist/*.exe
