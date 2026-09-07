@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "SmartNotes AI",
+    "slug": "smart-notes-pro-2026",
+    "scheme": "smartnotes",
+    "version": "1.0.1",
+    "orientation": "default",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.andrey.smartnotes"
+    },
+    "android": {
+      "package": "com.andrey.smartnotes",
+      "versionCode": 2,
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Разрешите доступ к галерее для отправки фото нейросети.",
+          "cameraPermission": "Разрешите доступ к камере для отправки фото нейросети."
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Разрешите доступ к микрофону для отправки голосовых сообщений нейросети."
+        }
+      ],
+      "expo-secure-store",
+      "expo-localization",
+      "expo-speech-recognition"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "919d8933-441b-4e51-b54c-8f53488f875c"
+      }
+    },
+    "owner": "andreykz"
+  }
+}

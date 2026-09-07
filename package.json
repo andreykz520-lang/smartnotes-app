@@ -1,0 +1,93 @@
+{
+  "name": "smartnotesapp",
+  "version": "1.0.1",
+  "main": "index.ts",
+  "author": "SmartNotes AI <support@smartnotes-ai.ru>",
+  "homepage": "https://smartnotes-ai.ru",
+  "dependencies": {
+    "@expo/metro-runtime": "~3.2.3",
+    "@expo/vector-icons": "^14.0.3",
+    "@react-native-async-storage/async-storage": "1.23.1",
+    "@react-native-community/datetimepicker": "8.0.1",
+    "@react-native-google-signin/google-signin": "^13.3.1",
+    "@react-navigation/bottom-tabs": "^6.6.1",
+    "@react-navigation/native": "^6.1.17",
+    "@react-navigation/native-stack": "^6.9.26",
+    "expo": "~51.0.0",
+    "expo-application": "~5.9.1",
+    "expo-auth-session": "~5.5.2",
+    "expo-av": "~14.0.7",
+    "expo-crypto": "~13.0.2",
+    "expo-document-picker": "~12.0.2",
+    "expo-font": "~12.0.10",
+    "expo-image-picker": "~15.1.0",
+    "expo-localization": "~15.0.3",
+    "expo-notifications": "~0.28.19",
+    "expo-print": "~13.0.1",
+    "expo-secure-store": "~13.0.2",
+    "expo-sharing": "~12.0.1",
+    "expo-speech-recognition": "^56.0.1",
+    "expo-status-bar": "~1.12.1",
+    "expo-web-browser": "~13.0.3",
+    "i18next": "^26.3.6",
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-i18next": "^17.0.11",
+    "react-native": "0.74.5",
+    "react-native-safe-area-context": "4.10.5",
+    "react-native-screens": "3.31.1",
+    "react-native-web": "~0.19.10",
+    "uuid": "^10.0.0",
+    "zustand": "^5.0.14"
+  },
+  "devDependencies": {
+    "@types/react": "~18.2.79",
+    "@types/uuid": "^10.0.0",
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3",
+    "electron-serve": "^3.0.1",
+    "typescript": "~5.3.3"
+  },
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "build:windows": "expo export && electron-builder --win",
+    "build:linux": "expo export && electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.andrey.smartnotes",
+    "productName": "SmartNotes AI",
+    "directories": {
+      "output": "electron-dist"
+    },
+    "extraMetadata": {
+      "main": "main.js"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "assets/icon.png",
+      "assets/icon.ico",
+      "!node_modules${/*}"
+    ],
+    "asar": true,
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": ["deb", "tar.gz", "AppImage", "snap"],
+      "icon": "assets/icon.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "private": true
+}

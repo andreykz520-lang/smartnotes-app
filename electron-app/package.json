@@ -1,0 +1,32 @@
+{
+  "name": "electron-app",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^43.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.smartnotes",
+    "productName": "SmartNotes",
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "dist/**/*",
+      "main.js",
+      "assets/icon.png"
+    ]
+  },
+  "dependencies": {
+    "electron-serve": "^3.0.1"
+  }
+}

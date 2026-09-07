@@ -1,0 +1,4 @@
+
+Cache cleared
+[Renderer] ReferenceError: useEffect is not defined (app://-/_expo/static/js/web/index-5e92be70b35738348048c5521004d939.js:31)
+[Renderer] Uncaught ReferenceError: useEffect is not defined (app://-/_expo/static/js/web/index-5e92be70b35738348048c5521004d939.js:31)

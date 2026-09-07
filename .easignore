@@ -1,0 +1,12 @@
+node_modules/
+electron-dist/
+electron-app/
+.git/
+.idea/
+*.apk
+*.aab
+rustore_promo_cards/
+icon_for_yandex.jpg
+dist/
+android/
+.gradle/
