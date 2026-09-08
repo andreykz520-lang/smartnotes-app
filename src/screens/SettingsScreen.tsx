@@ -33,6 +33,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Замените на ваш Client ID из Яндекс OAuth (https://oauth.yandex.ru/)
 const YANDEX_CLIENT_ID = '51e56994f0c641eb9c8689cfe9ab63b4';
+const GOOGLE_CLIENT_ID = '926068433226-feq79p29gmgk8rf4i6r9qnqm9co91a9s.apps.googleusercontent.com';
 
 const discovery = {
   authorizationEndpoint: 'https://oauth.yandex.ru/authorize',
@@ -102,6 +103,22 @@ export default function SettingsScreen() {
       scopes: ['cloud_api:disk.app_folder'],
     },
     discovery
+  );
+
+  const [googleRequest, googleResponse, promptGoogleAsync] = AuthSession.useAuthRequest(
+    {
+      clientId: GOOGLE_CLIENT_ID,
+      responseType: AuthSession.ResponseType.Token,
+      redirectUri: Platform.OS === 'web' 
+        ? 'https://auth.expo.io' 
+        : AuthSession.makeRedirectUri({ scheme: 'smartnotes' }),
+      scopes: ['https://www.googleapis.com/auth/drive.file'],
+    },
+    {
+      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+      tokenEndpoint: 'https://oauth2.googleapis.com/token',
+      revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+    }
   );
 
   const showAlert = (title: string, message: string) => {
@@ -188,6 +205,16 @@ export default function SettingsScreen() {
       }
     }
   }, [response]);
+
+  useEffect(() => {
+    if (googleResponse?.type === 'success') {
+      const { access_token } = (googleResponse.params as any);
+      if (access_token) {
+        setGoogleToken(access_token);
+        showAlert('Успешно', 'Авторизация в Google Drive прошла успешно!');
+      }
+    }
+  }, [googleResponse]);
 
   useEffect(() => {
     if (typeof window !== 'undefined' && window.location && window.location.hash) {
@@ -338,6 +365,10 @@ export default function SettingsScreen() {
   const handleLoginGoogle = async () => {
     if (!isPro) {
       Alert.alert('Требуется PRO', 'Синхронизация с Google Диском доступна только в PRO версии.');
+      return;
+    }
+    if (Platform.OS === 'web') {
+      promptGoogleAsync();
       return;
     }
     try {
