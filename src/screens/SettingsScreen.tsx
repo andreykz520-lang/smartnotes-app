@@ -703,7 +703,7 @@ export default function SettingsScreen() {
         )}
       </View>
 
-      {!isLocalMode && Platform.OS !== 'web' && (
+      {!isLocalMode && (
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Ionicons name="logo-google" size={24} color="#DB4437" />
@@ -714,9 +714,25 @@ export default function SettingsScreen() {
         </Text>
         
         {!googleToken ? (
-          <TouchableOpacity style={styles.googleButton} onPress={handleLoginGoogle}>
-            <Text style={styles.googleButtonText}>{t('settings.login_google')}</Text>
-          </TouchableOpacity>
+          <>
+            <TouchableOpacity style={styles.googleButton} onPress={handleLoginGoogle}>
+              <Text style={styles.googleButtonText}>{t('settings.login_google')}</Text>
+            </TouchableOpacity>
+            {Platform.OS === 'web' && (
+              <View style={{ marginTop: spacing.md }}>
+                <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: spacing.xs }}>
+                  Или вставьте OAuth-токен Google Диска вручную:
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Вставьте токен Google (ya29...)"
+                  placeholderTextColor={colors.textMuted}
+                  onChangeText={setGoogleToken}
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
+          </>
         ) : (
           <View style={styles.syncActions}>
             <Text style={styles.loggedInText}>{t('settings.logged_in_google')}</Text>
