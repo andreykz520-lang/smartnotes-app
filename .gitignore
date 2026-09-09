@@ -21,3 +21,6 @@ yarn-error.*
 /android
 electron-dist/
 *.apk
+secret_key.txt
+*secret*
+.env*
