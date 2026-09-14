@@ -103,7 +103,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
       const installDate = parseInt(installDateStr, 10);
       const elapsedMs = Date.now() - installDate;
-      const trialDurationMs = 3 * 24 * 60 * 60 * 1000;
+      const trialDurationMs = 30 * 24 * 60 * 60 * 1000;
       const isTrialActive = elapsedMs < trialDurationMs;
       const trialDaysLeft = isTrialActive ? Math.max(1, Math.ceil((trialDurationMs - elapsedMs) / (24 * 60 * 60 * 1000))) : 0;
 
