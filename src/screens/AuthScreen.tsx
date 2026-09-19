@@ -37,17 +37,27 @@ export default function AuthScreen() {
         body: JSON.stringify({ email: cleanEmail }),
       });
       
-      const data = await response.json();
-      if (response.ok && data.success) {
+      let data: any = null;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch {
+        // Response was not JSON (e.g. 404, 502 Bad Gateway HTML, proxy error)
+        throw new Error('Сервер временно недоступен или обновляется. Пожалуйста, повторите позже.');
+      }
+
+      if (response.ok && data?.success) {
         setStep('CODE');
         setStatusMessage({ type: 'success', text: `Код отправлен на ${cleanEmail}` });
       } else {
-        const err = data.error || 'Не удалось отправить код';
+        const err = data?.error || 'Не удалось отправить код. Попробуйте позже.';
         setStatusMessage({ type: 'error', text: err });
         showAlert('Ошибка', err);
       }
     } catch (e: any) {
-      const err = 'Проверьте подключение к интернету: ' + (e?.message || '');
+      const err = e?.message?.includes('Сервер') 
+        ? e.message 
+        : 'Не удалось связаться с сервером. Проверьте интернет-соединение.';
       setStatusMessage({ type: 'error', text: err });
       showAlert('Ошибка', err);
     } finally {
@@ -74,12 +84,18 @@ export default function AuthScreen() {
         body: JSON.stringify({ email: cleanEmail, code: cleanCode, deviceId: activeDeviceId }),
       });
       
-      const data = await response.json();
+      let data: any = null;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Сервер временно недоступен или обновляется. Пожалуйста, повторите позже.');
+      }
       
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         setAuth(data.token, data.user.email, data.user.isPro, data.user.isProPlus);
       } else {
-        if (response.status === 403 && data.error?.includes('Превышен лимит устройств')) {
+        if (response.status === 403 && data?.error?.includes('Превышен лимит устройств')) {
           if (data.canReset) {
             Alert.alert(
               'Превышен лимит устройств',
@@ -93,12 +109,15 @@ export default function AuthScreen() {
             setStatusMessage({ type: 'error', text: 'Вы превысили лимит устройств и уже использовали одноразовый сброс. Обратитесь в поддержку.' });
           }
         } else {
-          const err = data.error || 'Неверный или устаревший код';
+          const err = data?.error || 'Неверный или устаревший код';
           setStatusMessage({ type: 'error', text: err });
         }
       }
     } catch (e: any) {
-      setStatusMessage({ type: 'error', text: 'Ошибка сети: ' + (e?.message || '') });
+      const err = e?.message?.includes('Сервер') 
+        ? e.message 
+        : 'Не удалось связаться с сервером. Проверьте интернет-соединение.';
+      setStatusMessage({ type: 'error', text: err });
     } finally {
       setIsLoading(false);
     }
@@ -117,15 +136,24 @@ export default function AuthScreen() {
         body: JSON.stringify({ email: cleanEmail, code: cleanCode, deviceId: activeDeviceId }),
       });
       
-      const data = await response.json();
+      let data: any = null;
+      try {
+        const text = await response.text();
+        data = JSON.parse(text);
+      } catch {
+        throw new Error('Сервер временно недоступен или обновляется. Пожалуйста, повторите позже.');
+      }
       
-      if (response.ok && data.success) {
+      if (response.ok && data?.success) {
         setAuth(data.token, data.user.email, data.user.isPro, data.user.isProPlus);
       } else {
-        setStatusMessage({ type: 'error', text: data.error || 'Не удалось сбросить устройства' });
+        setStatusMessage({ type: 'error', text: data?.error || 'Не удалось сбросить устройства' });
       }
     } catch (e: any) {
-      setStatusMessage({ type: 'error', text: 'Ошибка сети: ' + (e?.message || '') });
+      const err = e?.message?.includes('Сервер') 
+        ? e.message 
+        : 'Не удалось связаться с сервером. Проверьте интернет-соединение.';
+      setStatusMessage({ type: 'error', text: err });
     } finally {
       setIsLoading(false);
     }
