@@ -26,6 +26,9 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       }
     },
+    "experiments": {
+      "baseUrl": "/app"
+    },
     "web": {
       "favicon": "./assets/favicon.png"
     },

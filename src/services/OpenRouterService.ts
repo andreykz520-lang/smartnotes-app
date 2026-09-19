@@ -1,4 +1,5 @@
 import * as FileSystem from 'expo-file-system';
+import { API_URL } from '../config';
 
 export class OpenRouterService {
   static async sendMessage(apiKey: string, proxyUrl: string | null, messages: {role: string, content: string, imageUri?: string, audioUri?: string}[]): Promise<string | null> {
@@ -28,7 +29,7 @@ export class OpenRouterService {
     }));
 
     try {
-      let baseUrl = 'https://smartnotes-backend-two.vercel.app/api/proxy/openrouter/v1/chat/completions';
+      let baseUrl = `${API_URL}/api/proxy/openrouter/v1/chat/completions`;
       if (proxyUrl && proxyUrl !== 'NONE' && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
         baseUrl = proxyUrl.replace(/\/$/, '');
         if (!baseUrl.includes('/chat/completions')) {
@@ -98,7 +99,7 @@ ${noteText}`;
     }
 
     try {
-      let baseUrl = 'https://smartnotes-backend-two.vercel.app/api/proxy/openrouter/v1/chat/completions';
+      let baseUrl = `${API_URL}/api/proxy/openrouter/v1/chat/completions`;
       if (proxyUrl && proxyUrl !== 'NONE' && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
         baseUrl = proxyUrl.replace(/\/$/, '');
         if (!baseUrl.includes('/chat/completions')) {

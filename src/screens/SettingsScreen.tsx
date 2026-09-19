@@ -39,8 +39,9 @@ const discovery = {
   authorizationEndpoint: 'https://oauth.yandex.ru/authorize',
   tokenEndpoint: 'https://oauth.yandex.ru/token',
 };
+import { API_URL } from '../config';
 
-const BUILTIN_PROXY_URL = 'https://smartnotes-backend-two.vercel.app/api/proxy/gemini';
+const BUILTIN_PROXY_URL = `${API_URL}/api/proxy/gemini`;
 
 import { useAuthStore } from '../store/useAuthStore';
 import { useTranslation } from 'react-i18next';
@@ -138,7 +139,7 @@ export default function SettingsScreen() {
 
     try {
       setIsSendingRecoveryCode(true);
-      const res = await fetch('https://smartnotes-backend-two.vercel.app/api/auth/send-code', {
+      const res = await fetch(`${API_URL}/api/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: targetEmail })
@@ -170,7 +171,7 @@ export default function SettingsScreen() {
     try {
       setIsActivating(true);
       const deviceId = useAuthStore.getState().deviceId;
-      const res = await fetch('https://smartnotes-backend-two.vercel.app/api/auth/verify-code', {
+      const res = await fetch(`${API_URL}/api/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: targetEmail, code: targetCode, deviceId })
@@ -446,7 +447,7 @@ export default function SettingsScreen() {
     try {
       setIsSendingCode(true);
       const email = useAuthStore.getState().email;
-      const res = await fetch('https://smartnotes-backend-two.vercel.app/api/auth/send-code', {
+      const res = await fetch(`${API_URL}/api/auth/send-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email })
@@ -474,7 +475,7 @@ export default function SettingsScreen() {
       const email = useAuthStore.getState().email;
       const deviceId = useAuthStore.getState().deviceId;
       
-      const res = await fetch('https://smartnotes-backend-two.vercel.app/api/auth/verify-code', {
+      const res = await fetch(`${API_URL}/api/auth/verify-code`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: resetCode.trim(), deviceId })

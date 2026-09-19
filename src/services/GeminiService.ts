@@ -1,8 +1,9 @@
 import * as FileSystem from 'expo-file-system';
 import { useAuthStore } from '../store/useAuthStore';
+import { API_URL } from '../config';
 
 const PRO_GEMINI_KEY = 'AQ.Ab8RN6IcZJdYCDG28zz80eX1fiNfTqveqWP7NDk80x7ohKEMCw';
-const BUILTIN_PROXY = 'https://smartnotes-backend-two.vercel.app/api/proxy/gemini';
+const BUILTIN_PROXY = `${API_URL}/api/proxy/gemini`;
 const GEMINI_MODEL = 'gemini-3.7-flash';
 
 export class GeminiService {
