@@ -12,6 +12,7 @@ import { GigaChatService } from '../services/GigaChatService';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
 
+const GOOGLE_CLIENT_ID = '926068433226-feq79p29gmgk8rf4i6r9qnqm9co91a9s.apps.googleusercontent.com';
 let GoogleSignin: any = null;
 let statusCodes: any = {};
 if (Platform.OS !== 'web') {
@@ -22,6 +23,8 @@ if (Platform.OS !== 'web') {
     if (GoogleSignin && GoogleSignin.configure) {
       GoogleSignin.configure({
         scopes: ['https://www.googleapis.com/auth/drive.file'],
+        webClientId: GOOGLE_CLIENT_ID,
+        offlineAccess: true,
       });
     }
   } catch (e) {
@@ -33,7 +36,6 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Замените на ваш Client ID из Яндекс OAuth (https://oauth.yandex.ru/)
 const YANDEX_CLIENT_ID = '51e56994f0c641eb9c8689cfe9ab63b4';
-const GOOGLE_CLIENT_ID = '926068433226-feq79p29gmgk8rf4i6r9qnqm9co91a9s.apps.googleusercontent.com';
 
 const discovery = {
   authorizationEndpoint: 'https://oauth.yandex.ru/authorize',
@@ -373,19 +375,24 @@ export default function SettingsScreen() {
       return;
     }
     try {
-      await GoogleSignin.hasPlayServices();
-      await GoogleSignin.signIn();
-      const tokens = await GoogleSignin.getTokens();
-      if (tokens.accessToken) {
-        setGoogleToken(tokens.accessToken);
-        Alert.alert('Успешно', 'Авторизация в Google Drive прошла успешно!');
+      if (GoogleSignin) {
+        await GoogleSignin.hasPlayServices();
+        await GoogleSignin.signIn();
+        const tokens = await GoogleSignin.getTokens();
+        if (tokens.accessToken) {
+          setGoogleToken(tokens.accessToken);
+          Alert.alert('Успешно', 'Авторизация в Google Drive прошла успешно!');
+          return;
+        }
       }
+      promptGoogleAsync();
     } catch (error: any) {
-      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
-        // cancelled
-      } else {
-        Alert.alert('Ошибка авторизации', error.message || 'Не удалось войти в Google');
+      if (error?.code === statusCodes.SIGN_IN_CANCELLED) {
+        return;
       }
+      // If native fails (e.g. DEVELOPER_ERROR / SHA-1 mismatch), fallback to WebBrowser OAuth
+      console.warn('Native Google sign-in failed, falling back to browser OAuth:', error);
+      promptGoogleAsync();
     }
   };
 
