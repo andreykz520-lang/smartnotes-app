@@ -24,3 +24,6 @@ electron-dist/
 secret_key.txt
 *secret*
 .env*
+*.deb
+android/local-maven/
+android/build_release.ps1

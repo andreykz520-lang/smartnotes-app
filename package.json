@@ -76,7 +76,14 @@
     "asar": true,
     "win": {
       "target": "nsis",
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "artifactName": "SmartNotes.AI.Setup.${version}.${ext}"
+    },
+    "deb": {
+      "artifactName": "${name}_${version}_${arch}.${ext}"
+    },
+    "appImage": {
+      "artifactName": "SmartNotes.AI-${version}.${ext}"
     },
     "linux": {
       "target": ["deb", "tar.gz", "AppImage", "snap"],

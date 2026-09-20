@@ -61,6 +61,8 @@ function startServer(callback) {
 
       let reqPath = decodeURIComponent(req.url.split('?')[0]);
       if (reqPath.startsWith('/')) reqPath = reqPath.slice(1);
+      if (reqPath === 'app' || reqPath === 'app/') reqPath = 'index.html';
+      if (reqPath.startsWith('app/')) reqPath = reqPath.slice(4);
       if (!reqPath || reqPath === '') reqPath = 'index.html';
 
       let filePath = path.join(distDir, reqPath);
@@ -104,7 +106,9 @@ function startServer(callback) {
 }
 
 function createWindow(port) {
-  const iconPath = path.join(__dirname, 'assets', 'icon.ico');
+  const iconPath = process.platform === 'win32'
+    ? path.join(__dirname, 'assets', 'icon.ico')
+    : path.join(__dirname, 'assets', 'icon.png');
   
   mainWindow = new BrowserWindow({
     width: 1200,
