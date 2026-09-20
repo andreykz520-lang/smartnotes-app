@@ -20,19 +20,38 @@ export class GigaChatService {
       return cachedToken;
     }
 
+    let cleanKey = authKey.trim();
+    if (cleanKey.toLowerCase().startsWith('basic ')) {
+      cleanKey = cleanKey.slice(6).trim();
+    }
+
     const rqUid = Crypto.randomUUID();
     
     try {
-      const response = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
+      let response = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
           'Accept': 'application/json',
           'RqUID': rqUid,
-          'Authorization': `Basic ${authKey}`
+          'Authorization': `Basic ${cleanKey}`
         },
         body: 'scope=GIGACHAT_API_PERS'
       });
+
+      if (!response.ok) {
+        const retryRes = await fetch('https://ngw.devices.sberbank.ru:9443/api/v2/oauth', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'RqUID': Crypto.randomUUID(),
+            'Authorization': `Basic ${cleanKey}`
+          },
+          body: 'scope=GIGACHAT_API_CORP'
+        });
+        if (retryRes.ok) response = retryRes;
+      }
 
       if (!response.ok) {
         const errText = await response.text();
@@ -45,7 +64,7 @@ export class GigaChatService {
       return cachedToken!;
     } catch (e: any) {
       console.error('Failed to get GigaChat token:', e);
-      throw new Error(e.message || 'Ошибка получения токена GigaChat. Возможно, проблема с сертификатами Минцифры.');
+      throw new Error(e.message || 'Ошибка получения токена GigaChat.');
     }
   }
 
@@ -56,7 +75,7 @@ export class GigaChatService {
       content: msg.content || '...'
     }));
 
-    // Сначала пробуем через серверный прокси (он обходит проблемы с сертификатами Минцифры)
+    // Сначала пробуем через серверный прокси
     try {
       const proxyRes = await fetch(`${API_URL}/api/proxy/gigachat`, {
         method: 'POST',
@@ -68,17 +87,12 @@ export class GigaChatService {
         if (proxyData?.choices?.[0]?.message?.content) {
           return proxyData.choices[0].message.content;
         }
-      } else if (proxyRes.status === 400 || proxyRes.status === 401) {
-        const errData = await proxyRes.json().catch(() => null);
-        throw new Error(errData?.error || `GigaChat ошибка авторизации (${proxyRes.status})`);
       }
     } catch (proxyErr: any) {
-      if (proxyErr?.message?.includes('GigaChat ошибка') || proxyErr?.message?.includes('Auth Error')) {
-        throw proxyErr;
-      }
       console.warn('GigaChat proxy fallback to direct call:', proxyErr);
     }
 
+    // Если прокси не вернул ответ, работаем напрямую со Сбером (как в Автомеханике)
     const token = await this.getAccessToken(authKey);
 
     try {
