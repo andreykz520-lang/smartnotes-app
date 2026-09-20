@@ -10,6 +10,9 @@ interface SettingsState {
   openRouterKey: string | null;
   activeAiProvider: 'gemini' | 'gigachat' | 'openrouter';
   proxyUrl: string | null;
+  selectedGeminiModel: string;
+  selectedGigaChatModel: string;
+  selectedOpenRouterModel: string;
   pinCode: string | null;
   isAutoSyncEnabled: boolean;
   isCloudEnabled: boolean;
@@ -19,6 +22,9 @@ interface SettingsState {
   setGigaChatKey: (key: string | null) => void;
   setOpenRouterKey: (key: string | null) => void;
   setActiveAiProvider: (provider: 'gemini' | 'gigachat' | 'openrouter') => void;
+  setSelectedGeminiModel: (model: string) => void;
+  setSelectedGigaChatModel: (model: string) => void;
+  setSelectedOpenRouterModel: (model: string) => void;
   setProxyUrl: (url: string | null) => void;
   setPinCode: (pin: string | null) => void;
   setAutoSyncEnabled: (enabled: boolean) => void;
@@ -34,6 +40,9 @@ export const useSettingsStore = create<SettingsState>()(
       gigaChatKey: null,
       openRouterKey: null,
       activeAiProvider: 'openrouter',
+      selectedGeminiModel: 'gemini-3.7-flash',
+      selectedGigaChatModel: 'GigaChat',
+      selectedOpenRouterModel: 'google/gemini-3.7-flash',
       proxyUrl: null,
       pinCode: null,
       isAutoSyncEnabled: false,
@@ -44,6 +53,9 @@ export const useSettingsStore = create<SettingsState>()(
       setGigaChatKey: (key) => set({ gigaChatKey: key }),
       setOpenRouterKey: (key) => set({ openRouterKey: key }),
       setActiveAiProvider: (provider) => set({ activeAiProvider: provider }),
+      setSelectedGeminiModel: (model) => set({ selectedGeminiModel: model }),
+      setSelectedGigaChatModel: (model) => set({ selectedGigaChatModel: model }),
+      setSelectedOpenRouterModel: (model) => set({ selectedOpenRouterModel: model }),
       setProxyUrl: (url) => set({ proxyUrl: url }),
       setPinCode: (pin) => set({ pinCode: pin }),
       setAutoSyncEnabled: (enabled) => set({ isAutoSyncEnabled: enabled }),

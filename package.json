@@ -1,6 +1,6 @@
 {
   "name": "smartnotesapp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Умные заметки с синхронизацией и ИИ",
   "main": "index.ts",
   "author": "SmartNotes AI <support@smartnotes-ai.ru>",

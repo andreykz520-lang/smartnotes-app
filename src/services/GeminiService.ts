@@ -1,10 +1,10 @@
 import * as FileSystem from 'expo-file-system';
 import { useAuthStore } from '../store/useAuthStore';
+import { useSettingsStore } from '../store/useSettingsStore';
 import { API_URL } from '../config';
 
 const PRO_GEMINI_KEY = 'BUILTIN';
 const BUILTIN_PROXY = `${API_URL}/api/proxy/gemini`;
-const GEMINI_MODEL = 'gemini-3.7-flash';
 
 export class GeminiService {
   private static getBaseUrl(proxyUrl: string | null): string {
@@ -13,12 +13,17 @@ export class GeminiService {
     return proxyUrl.replace(/\/$/, '');
   }
 
+  private static getModel(): string {
+    return useSettingsStore.getState().selectedGeminiModel || 'gemini-3.7-flash';
+  }
+
   static async sendMessage(apiKey: string, proxyUrl: string | null, messages: {role: string, content: string, imageUri?: string, audioUri?: string}[]): Promise<string | null> {
     const { isPro, isProPlus, isTrialActive } = useAuthStore.getState();
     const finalApiKey = (!apiKey || apiKey.trim() === '') ? PRO_GEMINI_KEY : apiKey.trim();
 
+    const model = this.getModel();
     const baseUrl = this.getBaseUrl(proxyUrl);
-    const url = `${baseUrl}/v1beta/models/${GEMINI_MODEL}:generateContent?key=${finalApiKey}`;
+    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${finalApiKey}`;
     
     // Google Gemini API strictly requires that the first message is 'user' and not empty
     let validMessages = messages.filter(m => (m.content && m.content.trim()) || m.imageUri || m.audioUri);
@@ -67,7 +72,7 @@ export class GeminiService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Gemini Error (${GEMINI_MODEL}): ${response.status} - ${errorText}`);
+        throw new Error(`Gemini Error (${model}): ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -82,8 +87,9 @@ export class GeminiService {
     const isProPlus = useAuthStore.getState().isProPlus;
     const finalApiKey = (isProPlus && (!apiKey || apiKey.trim() === '')) ? PRO_GEMINI_KEY : (apiKey || '');
 
+    const model = this.getModel();
     const baseUrl = this.getBaseUrl(proxyUrl);
-    const url = `${baseUrl}/v1beta/models/${GEMINI_MODEL}:generateContent?key=${finalApiKey}`;
+    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${finalApiKey}`;
 
     const now = new Date();
     const offset = -now.getTimezoneOffset();
@@ -124,7 +130,7 @@ ${audioUri ? 'К заметке прикреплено аудио-сообщен
 
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Gemini Error (${GEMINI_MODEL}): ${response.status} - ${errorText}`);
+        throw new Error(`Gemini Error (${model}): ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();

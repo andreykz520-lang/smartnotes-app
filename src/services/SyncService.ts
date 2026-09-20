@@ -28,12 +28,16 @@ export class SyncService {
         cloudData = await GoogleDriveService.restoreBackup(googleToken);
       }
 
+      if (cloudData && typeof cloudData === 'object' && 'data' in cloudData) {
+        cloudData = cloudData.data;
+      }
+
       if (cloudData) {
         let parsedNotes = typeof cloudData === 'string' ? JSON.parse(cloudData) : cloudData;
-        if (Array.isArray(parsedNotes) && parsedNotes.length >= notes.length) {
-          // Простейшая синхронизация: если в облаке больше или столько же заметок, берём облако
-          // (Для продакшена нужен merge по id и updatedAt, но для MVP достаточно этого)
-          replaceNotes(parsedNotes);
+        if (Array.isArray(parsedNotes) && parsedNotes.length > 0) {
+          if (parsedNotes.length >= notes.length) {
+            replaceNotes(parsedNotes);
+          }
         }
       }
     } catch (error) {

@@ -17,6 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 import DateTimePicker from '../components/DateTimePicker';
 import { useTranslation } from 'react-i18next';
 import { formatCategory } from '../utils/formatCategory';
@@ -357,22 +358,24 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
         result = await GeminiService.analyzeNote(geminiKey || '', proxyUrl, textToAnalyze, audioUri);
       }
       
-      if (result) {
-        if (result.transcription) {
-          setContent(prev => prev + (prev.trim() ? '\n\n' : '') + result.transcription);
+      const aiData = result;
+      if (aiData) {
+        if (aiData.transcription) {
+          setContent(prev => prev + (prev.trim() ? '\n\n' : '') + aiData.transcription);
           Alert.alert('Готово', 'Голос успешно расшифрован в текст!');
         }
-        if (result.summary) {
-          setContent(prev => prev + '\n\n--- AI Саммари ---\n' + result.summary);
+        if (aiData.summary) {
+          setContent(prev => prev + '\n\n--- AI Саммари ---\n' + aiData.summary);
         }
-        if (result.reminderDate) {
-          setReminderDate(new Date(result.reminderDate));
-          Alert.alert('AI нашел дату!', 'Установлено напоминание на ' + new Date(result.reminderDate).toLocaleString('ru-RU'));
+        if (aiData.reminderDate) {
+          setReminderDate(new Date(aiData.reminderDate));
+          Alert.alert('AI нашел дату!', 'Установлено напоминание на ' + new Date(aiData.reminderDate).toLocaleString('ru-RU'));
         }
-        if (result.tags && result.tags.length > 0) {
+        if (aiData.tags && aiData.tags.length > 0) {
+          const tagsToAdd = aiData.tags;
           setTags(prev => {
             const newTags = [...prev];
-            result.tags.forEach((t: string) => {
+            tagsToAdd.forEach((t: string) => {
               if (!newTags.includes(t)) newTags.push(t);
             });
             return newTags;

@@ -17,6 +17,14 @@ import AuthScreen from '../screens/AuthScreen';
 // Stack Navigator for Notes
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+export type RootStackParamList = {
+  Home: undefined;
+  NotesList: undefined;
+  NoteEditor: { noteId?: string; prefillCategory?: string; isSecret?: boolean } | undefined;
+  Chat: undefined;
+  Settings: undefined;
+};
+
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 

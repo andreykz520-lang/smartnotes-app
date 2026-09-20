@@ -11,6 +11,10 @@ import { OpenRouterService } from '../services/OpenRouterService';
 import { GigaChatService } from '../services/GigaChatService';
 import * as WebBrowser from 'expo-web-browser';
 import * as AuthSession from 'expo-auth-session';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
+import { changeLanguage } from '../i18n/i18n';
 
 const GOOGLE_CLIENT_ID = '926068433226-feq79p29gmgk8rf4i6r9qnqm9co91a9s.apps.googleusercontent.com';
 let GoogleSignin: any = null;
@@ -51,7 +55,21 @@ import { useTranslation } from 'react-i18next';
 export default function SettingsScreen() {
   const { t } = useTranslation();
   const { logout, isLocalMode, isPro, isProPlus, isTrialActive, trialDaysLeft, email } = useAuthStore();
-  const { geminiKey, setGeminiKey, gigaChatKey, setGigaChatKey, openRouterKey, setOpenRouterKey, activeAiProvider, setActiveAiProvider, proxyUrl, setProxyUrl, yandexToken, setYandexToken, googleToken, setGoogleToken, pinCode, setPinCode, isAutoSyncEnabled, setAutoSyncEnabled, isCloudEnabled, setCloudEnabled } = useSettingsStore();
+  const { 
+    geminiKey, setGeminiKey, 
+    gigaChatKey, setGigaChatKey, 
+    openRouterKey, setOpenRouterKey, 
+    activeAiProvider, setActiveAiProvider, 
+    selectedGeminiModel, setSelectedGeminiModel,
+    selectedGigaChatModel, setSelectedGigaChatModel,
+    selectedOpenRouterModel, setSelectedOpenRouterModel,
+    proxyUrl, setProxyUrl, 
+    yandexToken, setYandexToken, 
+    googleToken, setGoogleToken, 
+    pinCode, setPinCode, 
+    isAutoSyncEnabled, setAutoSyncEnabled, 
+    isCloudEnabled, setCloudEnabled 
+  } = useSettingsStore();
   const notes = useNoteStore(state => state.notes);
   const replaceNotes = useNoteStore(state => state.replaceNotes);
   const [localKey, setLocalKey] = React.useState(geminiKey || '');
@@ -357,7 +375,7 @@ export default function SettingsScreen() {
       const filesHint = (result.foundFiles && result.foundFiles.length > 0)
         ? `\nНайденные файлы: ${result.foundFiles.join(', ')}`
         : '\nВ папке приложения пока нет сохраненных копий.';
-      const debugHint = result.debug ? `\n\n[Debug: ${result.debug}]` : '';
+      const debugHint = (result as any).debug ? `\n\n[Debug: ${(result as any).debug}]` : '';
       showAlert(
         'Синхронизация',
         `На Яндекс Диске${userHint} не удалось прочитать файл заметок.${filesHint}${debugHint}\n\n1. Откройте SmartNotes на телефоне.\n2. В Настройках нажмите «Сохранить на диск».\n3. Затем нажмите «Восстановить» здесь.`
@@ -419,22 +437,156 @@ export default function SettingsScreen() {
   const handleRestoreGoogle = async () => {
     if (!googleToken) return;
     setIsSyncing(true);
-    const jsonData = await GoogleDriveService.restoreBackup(googleToken);
+    const result = await GoogleDriveService.restoreBackup(googleToken);
     setIsSyncing(false);
     
+    if (result?.error === 'AUTH_EXPIRED') {
+      Alert.alert(
+        'Сессия Google истекла',
+        'Срок действия входа в Google истек. Нажмите «Перезайти сейчас», чтобы обновить ключ, и затем повторите восстановление.',
+        [
+          { text: 'Отмена', style: 'cancel' },
+          { 
+            text: 'Перезайти сейчас', 
+            onPress: async () => {
+              await handleLogoutGoogle();
+              await handleLoginGoogle();
+            } 
+          }
+        ]
+      );
+      return;
+    }
+
+    const jsonData = result?.data !== undefined ? result.data : result;
+
     if (jsonData) {
       try {
         let parsed = jsonData;
         if (typeof jsonData === 'string') parsed = JSON.parse(jsonData);
         if (Array.isArray(parsed)) {
-          replaceNotes(parsed);
-          Alert.alert('Готово', 'Заметки успешно восстановлены из Google!');
+          if (parsed.length === 0) {
+            Alert.alert('Google Диск', 'Файл резервной копии найден, но список заметок пуст.');
+            return;
+          }
+          // Безопасное объединение, чтобы не затереть новые локальные заметки
+          const currentNotes = useNoteStore.getState().notes;
+          const merged = [...parsed];
+          for (const cur of currentNotes) {
+            if (!merged.some(n => n.id === cur.id)) {
+              merged.push(cur);
+            }
+          }
+          replaceNotes(merged);
+          Alert.alert('Готово 🎉', `Восстановлено заметок: ${parsed.length}. Все заметки на месте!`);
         }
       } catch (e) {
         Alert.alert('Ошибка', 'Некорректный формат данных в облаке.');
       }
     } else {
-      Alert.alert('Ошибка', 'Резервная копия не найдена на сервере.');
+      Alert.alert('Резервная копия не найдена', 'На Google Диске пока не найден файл smartnotes_backup.json.');
+    }
+  };
+
+  const handleExportBackup = async () => {
+    try {
+      if (notes.length === 0) {
+        Alert.alert('Экспорт заметок', 'У вас пока нет созданных заметок для экспорта.');
+        return;
+      }
+      const jsonData = JSON.stringify(notes, null, 2);
+      const fileName = `smartnotes_backup_${new Date().toISOString().slice(0, 10)}.json`;
+
+      if (Platform.OS === 'web') {
+        const blob = new Blob([jsonData], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        a.click();
+        URL.revokeObjectURL(url);
+        Alert.alert('Успешно', 'Резервная копия сохранена в файл!');
+        return;
+      }
+
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, jsonData, { encoding: FileSystem.EncodingType.UTF8 });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Сохранить резервную копию заметок',
+          UTI: 'public.json',
+        });
+      } else {
+        Alert.alert('Готово', `Файл успешно сохранен:\n${fileUri}`);
+      }
+    } catch (e: any) {
+      console.error('Export error:', e);
+      Alert.alert('Ошибка экспорта', e?.message || 'Не удалось сохранить резервную копию.');
+    }
+  };
+
+  const handleImportBackup = async () => {
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/json', '*/*'],
+        copyToCacheDirectory: true,
+      });
+
+      if (res.canceled || !res.assets || res.assets.length === 0) {
+        return;
+      }
+
+      const fileUri = res.assets[0].uri;
+      const content = await FileSystem.readAsStringAsync(fileUri, { encoding: FileSystem.EncodingType.UTF8 });
+
+      let parsed: any = null;
+      try {
+        parsed = JSON.parse(content);
+      } catch {
+        Alert.alert('Ошибка файла', 'Выбранный файл не является корректным JSON.');
+        return;
+      }
+
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        Alert.alert('Ошибка файла', 'В выбранном файле не найдено сохраненных заметок.');
+        return;
+      }
+
+      Alert.alert(
+        'Импорт заметок',
+        `Найдено заметок в файле: ${parsed.length}.\nКак вы хотите восстановить?`,
+        [
+          { text: 'Отмена', style: 'cancel' },
+          {
+            text: 'Объединить с текущими',
+            onPress: () => {
+              const currentNotes = useNoteStore.getState().notes;
+              const merged = [...parsed];
+              for (const cur of currentNotes) {
+                if (!merged.some(n => n.id === cur.id)) {
+                  merged.push(cur);
+                }
+              }
+              replaceNotes(merged);
+              Alert.alert('Успешно 🎉', `Всего заметок теперь: ${merged.length}`);
+            }
+          },
+          {
+            text: 'Заменить полностью',
+            style: 'destructive',
+            onPress: () => {
+              replaceNotes(parsed);
+              Alert.alert('Успешно 🎉', `Восстановлено заметок: ${parsed.length}`);
+            }
+          }
+        ]
+      );
+    } catch (e: any) {
+      console.error('Import error:', e);
+      Alert.alert('Ошибка импорта', e?.message || 'Не удалось прочитать файл.');
     }
   };
 
@@ -800,6 +952,33 @@ export default function SettingsScreen() {
 
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
+          <Ionicons name="folder-outline" size={24} color={colors.primary} />
+          <Text style={styles.sectionTitle}>Резервная копия на устройство</Text>
+        </View>
+        <Text style={styles.description}>
+          Сохраните все ваши заметки в файл на телефон или восстановите из ранее сохраненного файла. Работает полностью офлайн.
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: spacing.sm }}>
+          <TouchableOpacity 
+            style={[styles.syncButton, { flex: 1, backgroundColor: colors.surfaceHighlight, borderWidth: 1, borderColor: colors.border }]} 
+            onPress={handleExportBackup}
+          >
+            <Ionicons name="share-outline" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text style={[styles.syncButtonText, { color: colors.text, fontSize: 13 }]}>Экспорт в файл</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={[styles.syncButton, { flex: 1, backgroundColor: colors.surfaceHighlight, borderWidth: 1, borderColor: colors.border }]} 
+            onPress={handleImportBackup}
+          >
+            <Ionicons name="download-outline" size={18} color={colors.primary} style={{ marginRight: 6 }} />
+            <Text style={[styles.syncButtonText, { color: colors.text, fontSize: 13 }]}>Импорт из файла</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
           <Ionicons name="person-circle-outline" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>{t('settings.account')}</Text>
         </View>
@@ -906,11 +1085,37 @@ export default function SettingsScreen() {
                 secureTextEntry
               />
             </View>
-            <Text style={[styles.helpText, { marginTop: 4, marginBottom: spacing.md, fontSize: 12 }]}>
+            <Text style={[styles.description, { marginTop: 4, marginBottom: spacing.md, fontSize: 12 }]}>
               {isProPlus 
                 ? t('settings.gemini_help_pro_plus') 
                 : t('settings.gemini_help_free')}
             </Text>
+
+            <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель Google Gemini</Text>
+            <View style={{ flexDirection: 'row', gap: 6, marginVertical: 6 }}>
+              {[
+                { id: 'gemini-3.7-flash', name: '3.7 Flash', tag: 'Флагман' },
+                { id: 'gemini-2.5-flash', name: '2.5 Flash', tag: 'Быстрая' },
+                { id: 'gemini-2.0-flash', name: '2.0 Flash', tag: 'Базовая' },
+              ].map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.proxyModeButton,
+                    (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) && styles.proxyModeButtonActive,
+                    { flex: 1, paddingVertical: 8 }
+                  ]}
+                  onPress={() => setSelectedGeminiModel(m.id)}
+                >
+                  <Text style={[styles.proxyModeText, (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) && styles.proxyModeTextActive]}>
+                    {m.name}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) ? '#fff' : colors.textMuted }}>
+                    {m.tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>{t('settings.proxy_mode')}</Text>
             <View style={styles.proxyModeContainer}>
@@ -961,6 +1166,31 @@ export default function SettingsScreen() {
                 secureTextEntry
               />
             </View>
+
+            <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель GigaChat</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginVertical: 6 }}>
+              {[
+                { id: 'GigaChat', name: 'GigaChat', tag: 'Быстрая' },
+                { id: 'GigaChat-Pro', name: 'GigaChat-Pro', tag: 'Продвинутая' },
+              ].map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.proxyModeButton,
+                    (selectedGigaChatModel === m.id || (!selectedGigaChatModel && m.id === 'GigaChat')) && styles.proxyModeButtonActive,
+                    { flex: 1, paddingVertical: 8 }
+                  ]}
+                  onPress={() => setSelectedGigaChatModel(m.id)}
+                >
+                  <Text style={[styles.proxyModeText, (selectedGigaChatModel === m.id || (!selectedGigaChatModel && m.id === 'GigaChat')) && styles.proxyModeTextActive]}>
+                    {m.name}
+                  </Text>
+                  <Text style={{ fontSize: 10, color: (selectedGigaChatModel === m.id || (!selectedGigaChatModel && m.id === 'GigaChat')) ? '#fff' : colors.textMuted }}>
+                    {m.tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </>
         ) : (
           <>
@@ -979,10 +1209,44 @@ export default function SettingsScreen() {
                 secureTextEntry
               />
             </View>
+
+            <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель OpenRouter</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 }}>
+              {[
+                { id: 'google/gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
+                { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+                { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+                { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3' },
+              ].map(m => (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[
+                    styles.proxyModeButton,
+                    selectedOpenRouterModel === m.id && styles.proxyModeButtonActive,
+                    { flexGrow: 1, minWidth: '45%', paddingVertical: 8 }
+                  ]}
+                  onPress={() => setSelectedOpenRouterModel(m.id)}
+                >
+                  <Text style={[styles.proxyModeText, selectedOpenRouterModel === m.id && styles.proxyModeTextActive]}>
+                    {m.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <View style={[styles.inputContainer, { marginTop: 4 }]}>
+              <TextInput
+                style={styles.input}
+                placeholder="Или название другой модели (id)"
+                placeholderTextColor={colors.textMuted}
+                value={selectedOpenRouterModel}
+                onChangeText={setSelectedOpenRouterModel}
+                autoCapitalize="none"
+              />
+            </View>
           </>
         )}
 
-        <TouchableOpacity style={styles.saveButton} onPress={handleSaveKey}>
+        <TouchableOpacity style={styles.saveButton} onPress={() => handleSaveKey()}>
           <Text style={styles.saveButtonText}>{t('settings.save_ai_settings')}</Text>
         </TouchableOpacity>
 
@@ -1059,9 +1323,7 @@ export default function SettingsScreen() {
                 borderColor: colors.border
               }}
               onPress={() => {
-                import('../i18n/i18n').then(({ changeLanguage }) => {
-                  changeLanguage(lang.code);
-                });
+                changeLanguage(lang.code);
               }}
             >
               <Text style={{ color: colors.text, fontWeight: '500' }}>{lang.label}</Text>

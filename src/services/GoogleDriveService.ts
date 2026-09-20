@@ -3,9 +3,33 @@ import * as FileSystem from 'expo-file-system';
 export class GoogleDriveService {
   private static readonly FILE_NAME = 'smartnotes_backup.json';
 
+  static async getFreshToken(fallbackToken: string): Promise<string> {
+    try {
+      const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+      if (GoogleSignin) {
+        const tokens = await GoogleSignin.getTokens();
+        if (tokens?.accessToken) {
+          const { useSettingsStore } = require('../store/useSettingsStore');
+          useSettingsStore.getState().setGoogleToken(tokens.accessToken);
+          return tokens.accessToken;
+        }
+      }
+    } catch (e) {
+      console.warn('GoogleDriveService getFreshToken error:', e);
+    }
+    return fallbackToken;
+  }
+
   static async uploadBackup(accessToken: string, jsonData: string): Promise<boolean> {
     try {
-      const existingFileId = await this.findBackupFileId(accessToken);
+      const token = await this.getFreshToken(accessToken);
+      const existingFileId = await this.findBackupFileId(token);
+
+      // Защита: не перезаписывать существующую копию пустым списком заметок
+      if (existingFileId && (jsonData.trim() === '[]' || jsonData.trim() === '')) {
+        console.warn('Safety guard: skipping upload of empty notes list over existing Google Drive backup');
+        return true;
+      }
 
       const metadata = {
         name: this.FILE_NAME,
@@ -30,7 +54,7 @@ export class GoogleDriveService {
       const response = await fetch(url, {
         method,
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${token}`,
           'Content-Type': `multipart/related; boundary=${boundary}`,
         },
         body,
@@ -38,7 +62,7 @@ export class GoogleDriveService {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Google Drive Upload Error:', errorText);
+        console.error('Google Drive Upload Error:', response.status, errorText);
         return false;
       }
       return true;
@@ -48,42 +72,63 @@ export class GoogleDriveService {
     }
   }
 
-  static async restoreBackup(accessToken: string): Promise<any | null> {
+  static async restoreBackup(accessToken: string): Promise<{ data: any | null; error?: string } | any> {
     try {
-      const fileId = await this.findBackupFileId(accessToken);
-      if (!fileId) return null;
+      const token = await this.getFreshToken(accessToken);
+      const fileIdResult = await this.findBackupFileIdWithStatus(token);
 
-      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`, {
+      if (fileIdResult.status === 401) {
+        return { data: null, error: 'AUTH_EXPIRED' };
+      }
+      if (!fileIdResult.fileId) {
+        return { data: null, error: 'NOT_FOUND' };
+      }
+
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${fileIdResult.fileId}?alt=media`, {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${token}`,
         },
       });
 
-      if (!response.ok) return null;
+      if (response.status === 401) {
+        return { data: null, error: 'AUTH_EXPIRED' };
+      }
+
+      if (!response.ok) {
+        return { data: null, error: 'FETCH_FAILED' };
+      }
       
       const data = await response.json();
-      return data;
+      return { data, error: undefined };
     } catch (e) {
       console.error('Failed to restore backup from Google Drive', e);
-      return null;
+      return { data: null, error: 'NETWORK_ERROR' };
     }
   }
 
-  private static async findBackupFileId(accessToken: string): Promise<string | null> {
+  private static async findBackupFileIdWithStatus(accessToken: string): Promise<{ fileId: string | null; status?: number }> {
     try {
       const response = await fetch(`https://www.googleapis.com/drive/v3/files?q=name='${this.FILE_NAME}' and trashed=false&spaces=drive`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
+      if (response.status === 401) {
+        return { fileId: null, status: 401 };
+      }
       const data = await response.json();
       if (data.files && data.files.length > 0) {
-        return data.files[0].id;
+        return { fileId: data.files[0].id, status: response.status };
       }
-      return null;
+      return { fileId: null, status: response.status };
     } catch (e) {
-      return null;
+      return { fileId: null };
     }
+  }
+
+  private static async findBackupFileId(accessToken: string): Promise<string | null> {
+    const res = await this.findBackupFileIdWithStatus(accessToken);
+    return res.fileId;
   }
 
   static async findOrCreateAttachmentsFolder(accessToken: string): Promise<string | null> {

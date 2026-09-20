@@ -24,7 +24,10 @@ if (Platform.OS !== 'web') {
 export default function ChatScreen() {
   const { t } = useTranslation();
   const navigation = useNavigation();
-  const { geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl } = useSettingsStore();
+  const { 
+    geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl,
+    selectedGeminiModel, selectedGigaChatModel, selectedOpenRouterModel
+  } = useSettingsStore();
   const { messages, addMessage, clearHistory } = useChatStore();
   
   const [inputText, setInputText] = useState('');
@@ -299,6 +302,27 @@ export default function ChatScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
     >
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing.md, paddingVertical: 8, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.border }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+          <Ionicons 
+            name={activeAiProvider === 'gemini' ? "logo-google" : activeAiProvider === 'gigachat' ? "flash" : "globe-outline"} 
+            size={14} 
+            color={colors.primary} 
+            style={{ marginRight: 6 }} 
+          />
+          <Text style={{ fontSize: 12, color: colors.textMuted }}>
+            {activeAiProvider === 'gemini' 
+              ? `Google Gemini (${selectedGeminiModel || '3.7 Flash'})` 
+              : activeAiProvider === 'gigachat' 
+                ? `Сбер GigaChat (${selectedGigaChatModel || 'GigaChat'})` 
+                : `OpenRouter (${selectedOpenRouterModel?.split('/').pop() || 'Gemini 3.7'})`}
+          </Text>
+        </View>
+        <TouchableOpacity onPress={() => (navigation as any).navigate('Settings')} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>
+          <Text style={{ fontSize: 12, color: colors.primary, fontWeight: '600' }}>{t('tabs.settings')}</Text>
+        </TouchableOpacity>
+      </View>
+
       <FlatList
         ref={flatListRef}
         data={messages}
@@ -515,6 +539,4 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   messageText: { fontSize: 16, lineHeight: 22 },
-  userText: { color: colors.text },
-  aiText: { color: colors.text }
 });

@@ -4,6 +4,7 @@ import * as Application from 'expo-application';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import * as Crypto from 'expo-crypto';
+import { API_URL } from '../config';
 
 interface AuthState {
   token: string | null;
@@ -130,24 +131,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
 
       if (email && email.includes('@')) {
-        import('../config').then(({ API_URL }) => {
-          fetch(`${API_URL}/api/auth/status`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ email })
-          })
-          .then(res => res.json())
-          .then(data => {
-            if (data?.success && data?.user) {
-              const serverIsPro = !!data.user.isPro;
-              const serverIsProPlus = !!data.user.isProPlus;
-              AsyncStorage.setItem('isPro', JSON.stringify(serverIsPro));
-              AsyncStorage.setItem('isProPlus', JSON.stringify(serverIsProPlus));
-              set({ isPro: serverIsPro, isProPlus: serverIsProPlus });
-            }
-          })
-          .catch(() => {});
-        });
+        fetch(`${API_URL}/api/auth/status`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data?.success && data?.user) {
+            const serverIsPro = !!data.user.isPro;
+            const serverIsProPlus = !!data.user.isProPlus;
+            AsyncStorage.setItem('isPro', JSON.stringify(serverIsPro));
+            AsyncStorage.setItem('isProPlus', JSON.stringify(serverIsProPlus));
+            set({ isPro: serverIsPro, isProPlus: serverIsProPlus });
+          }
+        })
+        .catch(() => {});
       }
     } catch (e) {
       console.error('Failed to init auth', e);

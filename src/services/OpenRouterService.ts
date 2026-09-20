@@ -1,7 +1,12 @@
 import * as FileSystem from 'expo-file-system';
 import { API_URL } from '../config';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 export class OpenRouterService {
+  private static getModel(): string {
+    return useSettingsStore.getState().selectedOpenRouterModel || 'google/gemini-3.7-flash';
+  }
+
   static async sendMessage(apiKey: string, proxyUrl: string | null, messages: {role: string, content: string, imageUri?: string, audioUri?: string}[]): Promise<string | null> {
     const openRouterMessages = await Promise.all(messages.map(async msg => {
       const content: any[] = [];
@@ -50,7 +55,7 @@ export class OpenRouterService {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: 'google/gemini-3.7-flash',
+          model: this.getModel(),
           messages: openRouterMessages,
         })
       });
@@ -120,7 +125,7 @@ ${noteText}`;
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: 'google/gemini-3.7-flash',
+          model: this.getModel(),
           messages: [{ role: 'user', content }],
           temperature: 0.1,
           response_format: { type: 'json_object' }

@@ -1,11 +1,16 @@
 import * as Crypto from 'expo-crypto';
 import { API_URL } from '../config';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 // In-memory token cache
 let cachedToken: string | null = null;
 let tokenExpiresAt: number = 0;
 
 export class GigaChatService {
+  private static getModel(): string {
+    return useSettingsStore.getState().selectedGigaChatModel || 'GigaChat';
+  }
+
   /**
    * Получение токена доступа.
    * Кэширует токен до его истечения (GigaChat токены обычно живут 30 минут).
@@ -45,6 +50,7 @@ export class GigaChatService {
   }
 
   static async sendMessage(authKey: string, messages: {role: string, content: string}[]): Promise<string | null> {
+    const model = this.getModel();
     const gigaMessages = messages.map(msg => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: msg.content || '...'
@@ -55,15 +61,21 @@ export class GigaChatService {
       const proxyRes = await fetch(`${API_URL}/api/proxy/gigachat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ authKey, messages: gigaMessages })
+        body: JSON.stringify({ authKey, model, messages: gigaMessages })
       });
       if (proxyRes.ok) {
         const proxyData = await proxyRes.json();
         if (proxyData?.choices?.[0]?.message?.content) {
           return proxyData.choices[0].message.content;
         }
+      } else if (proxyRes.status === 400 || proxyRes.status === 401) {
+        const errData = await proxyRes.json().catch(() => null);
+        throw new Error(errData?.error || `GigaChat ошибка авторизации (${proxyRes.status})`);
       }
-    } catch (proxyErr) {
+    } catch (proxyErr: any) {
+      if (proxyErr?.message?.includes('GigaChat ошибка') || proxyErr?.message?.includes('Auth Error')) {
+        throw proxyErr;
+      }
       console.warn('GigaChat proxy fallback to direct call:', proxyErr);
     }
 
@@ -78,7 +90,7 @@ export class GigaChatService {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          model: 'GigaChat',
+          model: model,
           messages: gigaMessages,
           temperature: 0.7,
           top_p: 0.1,
@@ -103,7 +115,8 @@ export class GigaChatService {
   }
 
   static async analyzeNote(authKey: string, noteText: string): Promise<{summary: string, reminderDate: string | null, tags: string[], transcription?: string} | null> {
-    const token = await this.getAccessToken(authKey);
+    const model = this.getModel();
+    const token = await this.getAccessToken(authKey).catch(() => null);
 
     const now = new Date();
     const offset = -now.getTimezoneOffset();
@@ -132,6 +145,7 @@ ${noteText}`;
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           authKey,
+          model,
           messages: [{ role: 'user', content: prompt }]
         })
       });
@@ -152,7 +166,9 @@ ${noteText}`;
       console.warn('GigaChat analyze proxy fallback:', proxyErr);
     }
 
-    const token = await this.getAccessToken(authKey);
+    if (!token) {
+      throw new Error('Не удалось подключиться к GigaChat');
+    }
 
     try {
       const response = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
@@ -163,7 +179,7 @@ ${noteText}`;
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          model: 'GigaChat',
+          model: model,
           messages: [{ role: 'user', content: prompt }],
           temperature: 0.1,
           max_tokens: 1024,
