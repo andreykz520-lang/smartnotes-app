@@ -311,13 +311,17 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const { isPro } = require('../store/useAuthStore').useAuthStore();
 
   const handleAiAnalyze = async () => {
-    if (!isPro) {
-      Alert.alert('Требуется PRO', 'Анализ нейросетью доступен только в PRO версии.');
+    const { isPro, isProPlus, isTrialActive } = require('../store/useAuthStore').useAuthStore.getState();
+    const { geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl } = useSettingsStore.getState();
+
+    const hasCustomKey = (activeAiProvider === 'gigachat' && !!gigaChatKey) || 
+                         (activeAiProvider === 'openrouter' && !!openRouterKey) || 
+                         (activeAiProvider === 'gemini' && !!geminiKey);
+
+    if (!isPro && !isProPlus && !isTrialActive && !hasCustomKey) {
+      Alert.alert('Требуется ключ или PRO+', 'Для анализа заметки укажите собственный ключ в Настройках или оформите PRO+.');
       return;
     }
-
-    const { geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl } = useSettingsStore.getState();
-    const { isProPlus } = require('../store/useAuthStore').useAuthStore.getState();
     
     const textToAnalyze = (title + '\n' + content).trim();
     if (!textToAnalyze && !audioUri) {

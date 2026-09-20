@@ -121,15 +121,16 @@ export default function HomeScreen({ navigation }: Props) {
           </TouchableOpacity>
           <TouchableOpacity 
             onPress={() => {
-              if (isPro) {
+              const { geminiKey, gigaChatKey, openRouterKey } = require('../store/useSettingsStore').useSettingsStore.getState();
+              if (isPro || isProPlus || isTrialActive || geminiKey || gigaChatKey || openRouterKey) {
                 navigation.navigate('Chat');
               } else {
-                Alert.alert(t('settings.need_pro'), 'AI Чат доступен только в PRO версии.');
+                Alert.alert(t('settings.need_pro'), 'AI Чат доступен в PRO+ или при наличии собственного ключа (Сбер GigaChat, Google Gemini или OpenRouter).');
               }
             }} 
             style={{ marginRight: spacing.md }}
           >
-            <Ionicons name="chatbubbles-outline" size={24} color={isPro ? colors.primary : colors.textMuted} />
+            <Ionicons name="chatbubbles-outline" size={24} color={colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={{ marginRight: spacing.md }}>
             <Ionicons name="settings-outline" size={24} color={colors.text} />

@@ -866,17 +866,18 @@ export default function SettingsScreen() {
           <Ionicons name="sparkles" size={24} color={colors.primary} />
           <Text style={styles.sectionTitle}>{t('settings.ai_settings')}</Text>
         </View>
-        {!isPro ? (
-          <View style={{ backgroundColor: colors.surfaceHighlight, padding: spacing.md, borderRadius: borderRadius.md, marginTop: spacing.sm, borderWidth: 1, borderColor: colors.primary }}>
-             <Text style={{ color: colors.primary, fontWeight: 'bold', marginBottom: 4 }}>{t('settings.need_pro')}</Text>
-             <Text style={{ color: colors.textMuted, fontSize: 13, marginBottom: spacing.md }}>{t('settings.need_pro_ai_desc')}</Text>
-             <TouchableOpacity style={{backgroundColor: colors.primary, padding: spacing.sm, borderRadius: borderRadius.sm, alignItems: 'center'}} onPress={() => Linking.openURL(`https://smartnotes-ai.ru/#checkout?plan=pro_plus_6m${email ? `&email=${encodeURIComponent(email)}` : ''}`)}>
-               <Text style={{color: 'white', fontWeight: 'bold'}}>{t('settings.activate_pro')}</Text>
-             </TouchableOpacity>
+        {!isPro && !isProPlus && (
+          <View style={{ backgroundColor: colors.surfaceHighlight, padding: spacing.sm, borderRadius: borderRadius.md, marginBottom: spacing.md, borderWidth: 1, borderColor: colors.border }}>
+             <Text style={{ color: colors.text, fontSize: 13 }}>
+               💡 Вы можете ввести собственный ключ (Сбер GigaChat, Google Gemini или OpenRouter), либо подключить{' '}
+               <Text style={{ color: colors.primary, fontWeight: 'bold' }} onPress={() => Linking.openURL(`https://smartnotes-ai.ru/#checkout?plan=pro_plus_6m${email ? `&email=${encodeURIComponent(email)}` : ''}`)}>
+                 PRO+ со встроенным ИИ
+               </Text>.
+             </Text>
           </View>
-        ) : (
-          <>
-            <View style={styles.proxyModeContainer}>
+        )}
+
+        <View style={styles.proxyModeContainer}>
           <TouchableOpacity style={[styles.proxyModeButton, activeAiProvider === 'gemini' && styles.proxyModeButtonActive]} onPress={() => setActiveAiProvider('gemini')}>
             <Text style={[styles.proxyModeText, activeAiProvider === 'gemini' && styles.proxyModeTextActive]}>Google Gemini</Text>
           </TouchableOpacity>
@@ -1001,8 +1002,6 @@ export default function SettingsScreen() {
           <Text style={[styles.description, { marginTop: spacing.md, color: testResult.includes('Успех') || testResult.includes('Success') ? 'green' : 'red', fontWeight: 'bold' }]}>
             {testResult}
           </Text>
-        )}
-          </>
         )}
       </View>
 

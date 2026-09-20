@@ -1,4 +1,5 @@
 import * as Crypto from 'expo-crypto';
+import { API_URL } from '../config';
 
 // In-memory token cache
 let cachedToken: string | null = null;
@@ -44,12 +45,29 @@ export class GigaChatService {
   }
 
   static async sendMessage(authKey: string, messages: {role: string, content: string}[]): Promise<string | null> {
-    const token = await this.getAccessToken(authKey);
-
     const gigaMessages = messages.map(msg => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: msg.content || '...'
     }));
+
+    // Сначала пробуем через серверный прокси (он обходит проблемы с сертификатами Минцифры)
+    try {
+      const proxyRes = await fetch(`${API_URL}/api/proxy/gigachat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ authKey, messages: gigaMessages })
+      });
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json();
+        if (proxyData?.choices?.[0]?.message?.content) {
+          return proxyData.choices[0].message.content;
+        }
+      }
+    } catch (proxyErr) {
+      console.warn('GigaChat proxy fallback to direct call:', proxyErr);
+    }
+
+    const token = await this.getAccessToken(authKey);
 
     try {
       const response = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
@@ -106,6 +124,35 @@ export class GigaChatService {
 
 Текст заметки:
 ${noteText}`;
+
+    // Сначала пробуем через серверный прокси (обход SSL сертификатов Минцифры)
+    try {
+      const proxyRes = await fetch(`${API_URL}/api/proxy/gigachat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          authKey,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (proxyRes.ok) {
+        const proxyData = await proxyRes.json();
+        const contentText = proxyData?.choices?.[0]?.message?.content || '';
+        if (contentText) {
+          const jsonStr = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
+          const result = JSON.parse(jsonStr);
+          return {
+            summary: result.summary || 'Без названия',
+            reminderDate: result.reminderDate || null,
+            tags: Array.isArray(result.tags) ? result.tags : [],
+          };
+        }
+      }
+    } catch (proxyErr) {
+      console.warn('GigaChat analyze proxy fallback:', proxyErr);
+    }
+
+    const token = await this.getAccessToken(authKey);
 
     try {
       const response = await fetch('https://gigachat.devices.sberbank.ru/api/v1/chat/completions', {
