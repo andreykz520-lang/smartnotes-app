@@ -26,25 +26,54 @@ export async function getOrCreateDeviceId() {
   try {
     if (Platform.OS === 'android') {
       const androidId = Application.getAndroidId();
-      if (androidId) return androidId;
+      if (androidId) {
+        return androidId.startsWith('android_') ? androidId : `android_${androidId}`;
+      }
+      return 'android_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
     }
 
     if (Platform.OS === 'ios') {
       try {
         let deviceId = await SecureStore.getItemAsync('deviceId');
         if (!deviceId) {
-          deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+          deviceId = 'ios_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
           await SecureStore.setItemAsync('deviceId', deviceId);
         }
-        return deviceId;
+        return deviceId.startsWith('ios_') ? deviceId : `ios_${deviceId}`;
       } catch (e) {
         console.warn('SecureStore error:', e);
       }
     }
 
+    // Web browser vs Desktop Electron (Windows / Linux / macOS)
     let deviceId = await AsyncStorage.getItem('deviceId');
-    if (!deviceId) {
-      deviceId = 'win_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
+    const isElectron = typeof navigator !== 'undefined' && /electron/i.test(ua);
+
+    if (isElectron) {
+      // Desktop app
+      let prefix = 'win_';
+      if (/linux/i.test(ua)) prefix = 'linux_';
+      else if (/macintosh|mac os x/i.test(ua)) prefix = 'mac_';
+
+      if (!deviceId || (!deviceId.startsWith(prefix) && !deviceId.startsWith('device_win_'))) {
+        deviceId = prefix + Math.random().toString(36).substring(2) + Date.now().toString(36);
+        await AsyncStorage.setItem('deviceId', deviceId);
+      }
+      return deviceId;
+    }
+
+    // Pure Web browser (Chrome, Safari, Firefox on desktop or mobile)
+    let osSuffix = 'win';
+    if (/android/i.test(ua)) osSuffix = 'android';
+    else if (/iphone|ipad|ipod/i.test(ua)) osSuffix = 'ios';
+    else if (/macintosh|mac os x/i.test(ua)) osSuffix = 'mac';
+    else if (/linux/i.test(ua)) osSuffix = 'linux';
+    else if (/windows|win32/i.test(ua)) osSuffix = 'win';
+
+    const expectedPrefix = `web_${osSuffix}_`;
+    if (!deviceId || !deviceId.startsWith(expectedPrefix)) {
+      deviceId = expectedPrefix + Math.random().toString(36).substring(2) + Date.now().toString(36);
       await AsyncStorage.setItem('deviceId', deviceId);
     }
     return deviceId;
