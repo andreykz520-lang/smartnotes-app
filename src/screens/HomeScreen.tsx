@@ -30,6 +30,8 @@ export default function HomeScreen({ navigation }: Props) {
   const [isSecretUnlocked, setIsSecretUnlocked] = useState(false);
   const [isPinModalVisible, setIsPinModalVisible] = useState(false);
   const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState<string | null>(null);
+  const [showPin, setShowPin] = useState(false);
   
   const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
@@ -43,38 +45,96 @@ export default function HomeScreen({ navigation }: Props) {
     return Array.from(tags);
   }, [notes]);
 
+  const handleKeypadPress = (digit: string) => {
+    setPinError(null);
+    setPinInput(prev => {
+      if (prev.length >= 8) return prev;
+      return prev + digit;
+    });
+  };
+
+  const handleKeypadDelete = () => {
+    setPinError(null);
+    setPinInput(prev => prev.slice(0, -1));
+  };
+
+  const handleKeypadClear = () => {
+    setPinError(null);
+    setPinInput('');
+  };
+
   const handleLockPress = () => {
     if (isSecretUnlocked) {
       setIsSecretUnlocked(false);
       if (selectedCategory === 'Секреты') setSelectedCategory(null);
     } else {
       setPinInput('');
+      setPinError(null);
+      setShowPin(false);
       setIsPinModalVisible(true);
     }
   };
 
-  const handlePinSubmit = () => {
+  const handlePinSubmit = (customPin?: string) => {
+    const value = typeof customPin === 'string' ? customPin : pinInput;
     if (!pinCode) {
-      if (pinInput.length < 4) {
-        Alert.alert(t('common.error'), t('notes.pin_min_length'));
+      if (value.length < 4) {
+        setPinError(t('notes.pin_min_length'));
         return;
       }
-      setPinCode(pinInput);
+      setPinCode(value);
       setIsSecretUnlocked(true);
       setIsPinModalVisible(false);
       setSelectedCategory('Секреты');
-      Alert.alert(t('common.success'), t('notes.pin_created'));
+      setPinError(null);
+      if (Platform.OS === 'web' && typeof window !== 'undefined' && window.alert) {
+        window.alert(t('notes.pin_created'));
+      } else {
+        Alert.alert(t('common.success'), t('notes.pin_created'));
+      }
     } else {
-      if (pinInput === pinCode) {
+      if (value === pinCode) {
         setIsSecretUnlocked(true);
         setIsPinModalVisible(false);
         setSelectedCategory('Секреты');
+        setPinError(null);
       } else {
-        Alert.alert(t('common.error'), t('notes.wrong_pin'));
+        setPinError(t('notes.wrong_pin'));
         setPinInput('');
       }
     }
   };
+
+  React.useEffect(() => {
+    if (!isPinModalVisible) return;
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        setPinInput(prev => {
+          if (prev.length >= 8) return prev;
+          return prev + e.key;
+        });
+        setPinError(null);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        setPinInput(prev => prev.slice(0, -1));
+        setPinError(null);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handlePinSubmit();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setIsPinModalVisible(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isPinModalVisible, pinInput, pinCode]);
 
   const { isPro, isProPlus, isTrialActive, trialDaysLeft } = useAuthStore();
 
@@ -395,28 +455,108 @@ export default function HomeScreen({ navigation }: Props) {
         <Ionicons name="add" size={32} color="#fff" />
       </TouchableOpacity>
 
-      <Modal visible={isPinModalVisible} transparent animationType="fade">
+      <Modal visible={isPinModalVisible} transparent animationType="fade" onRequestClose={() => setIsPinModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {pinCode ? t('notes.enter_pin') : t('notes.create_pin')}
-            </Text>
-            <TextInput
-              style={styles.pinInput}
-              keyboardType="number-pad"
-              secureTextEntry
-              maxLength={8}
-              autoFocus
-              value={pinInput}
-              onChangeText={setPinInput}
-              onSubmitEditing={handlePinSubmit}
-            />
+            <View style={{ alignItems: 'center', marginBottom: spacing.sm }}>
+              <Ionicons name="lock-closed" size={32} color={colors.primary} style={{ marginBottom: 6 }} />
+              <Text style={styles.modalTitle}>
+                {pinCode ? t('notes.enter_pin') : t('notes.create_pin')}
+              </Text>
+              <Text style={{ fontSize: 13, color: colors.textMuted, textAlign: 'center', marginBottom: spacing.xs }}>
+                {!pinCode ? 'Придумайте PIN (4-8 цифр)' : 'Введите PIN или нажимайте кнопки'}
+              </Text>
+            </View>
+
+            {/* Visual PIN dots / digits display */}
+            <View style={styles.pinDisplayContainer}>
+              <View style={styles.pinDotsRow}>
+                {[0, 1, 2, 3].map((idx) => {
+                  const hasChar = pinInput.length > idx;
+                  const isChar = showPin && hasChar ? pinInput[idx] : null;
+                  return (
+                    <View key={idx} style={[styles.pinDot, hasChar && styles.pinDotFilled]}>
+                      {isChar ? (
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: colors.text }}>{isChar}</Text>
+                      ) : null}
+                    </View>
+                  );
+                })}
+                {pinInput.length > 4 && (
+                  <Text style={{ color: colors.primary, fontSize: 14, fontWeight: 'bold', marginLeft: 6 }}>
+                    +{pinInput.length - 4}
+                  </Text>
+                )}
+              </View>
+
+              {pinInput.length > 0 && (
+                <TouchableOpacity onPress={() => setShowPin(!showPin)} style={{ padding: 4, marginLeft: 8 }}>
+                  <Ionicons name={showPin ? "eye-off-outline" : "eye-outline"} size={20} color={colors.textMuted} />
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Error Message */}
+            {pinError ? (
+              <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '600', marginBottom: spacing.sm, textAlign: 'center' }}>
+                {pinError}
+              </Text>
+            ) : null}
+
+            {/* On-screen Numeric Keypad */}
+            <View style={styles.keypadContainer}>
+              {[
+                ['1', '2', '3'],
+                ['4', '5', '6'],
+                ['7', '8', '9'],
+                ['C', '0', '⌫']
+              ].map((row, rIdx) => (
+                <View key={rIdx} style={styles.keypadRow}>
+                  {row.map((btn) => (
+                    <TouchableOpacity
+                      key={btn}
+                      style={[
+                        styles.keypadButton,
+                        btn === 'C' && { backgroundColor: 'transparent' },
+                        btn === '⌫' && { backgroundColor: 'transparent' }
+                      ]}
+                      onPress={() => {
+                        if (btn === 'C') handleKeypadClear();
+                        else if (btn === '⌫') handleKeypadDelete();
+                        else handleKeypadPress(btn);
+                      }}
+                      activeOpacity={0.6}
+                    >
+                      {btn === '⌫' ? (
+                        <Ionicons name="backspace-outline" size={24} color={colors.text} />
+                      ) : (
+                        <Text style={[styles.keypadButtonText, btn === 'C' && { color: colors.textMuted, fontSize: 16 }]}>
+                          {btn}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ))}
+            </View>
+
+            {/* Action buttons Cancel / OK */}
             <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.modalButton} onPress={() => setIsPinModalVisible(false)}>
+              <TouchableOpacity 
+                style={[styles.modalButton, { backgroundColor: colors.surfaceHighlight }]} 
+                onPress={() => setIsPinModalVisible(false)}
+              >
                 <Text style={styles.modalButtonText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, {backgroundColor: colors.primary}]} onPress={handlePinSubmit}>
-                <Text style={[styles.modalButtonText, {color: '#fff'}]}>OK</Text>
+              <TouchableOpacity 
+                style={[
+                  styles.modalButton, 
+                  { backgroundColor: pinInput.length >= 4 ? colors.primary : colors.border }
+                ]} 
+                onPress={() => handlePinSubmit()}
+                disabled={pinInput.length < 4}
+              >
+                <Text style={[styles.modalButtonText, { color: '#fff', fontWeight: 'bold' }]}>OK</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -604,41 +744,87 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: colors.surface,
     padding: spacing.lg,
-    borderRadius: borderRadius.md,
-    width: '80%',
-    alignItems: 'center'
+    borderRadius: borderRadius.lg,
+    width: Platform.OS === 'web' ? 360 : '85%',
+    maxWidth: 380,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: spacing.md,
-    color: colors.text
+    marginBottom: 4,
+    color: colors.text,
+    textAlign: 'center'
   },
-  pinInput: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: borderRadius.md,
-    padding: spacing.md,
-    fontSize: 24,
-    width: '100%',
-    textAlign: 'center',
+  pinDisplayContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
     marginBottom: spacing.md,
+    height: 36
+  },
+  pinDotsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    alignItems: 'center'
+  },
+  pinDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
+    borderColor: colors.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'transparent'
+  },
+  pinDotFilled: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary
+  },
+  keypadContainer: {
+    width: '100%',
+    marginBottom: spacing.md,
+    gap: 10
+  },
+  keypadRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    gap: 10
+  },
+  keypadButton: {
+    flex: 1,
+    height: 52,
+    borderRadius: borderRadius.md,
+    backgroundColor: colors.surfaceHighlight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border
+  },
+  keypadButtonText: {
+    fontSize: 22,
+    fontWeight: '600',
     color: colors.text
   },
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: '100%'
+    width: '100%',
+    gap: spacing.sm
   },
   modalButton: {
     flex: 1,
-    padding: spacing.md,
+    paddingVertical: spacing.md,
     alignItems: 'center',
-    borderRadius: borderRadius.md,
-    marginHorizontal: spacing.xs
+    borderRadius: borderRadius.md
   },
   modalButtonText: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: colors.text
   },

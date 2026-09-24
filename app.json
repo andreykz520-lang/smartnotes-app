@@ -3,7 +3,7 @@
     "name": "SmartNotes AI",
     "slug": "smart-notes-pro-2026",
     "scheme": "smartnotes",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "orientation": "default",
     "icon": "./assets/icon.png",
     "splash": {
