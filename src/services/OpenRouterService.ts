@@ -4,7 +4,7 @@ import { useSettingsStore } from '../store/useSettingsStore';
 
 export class OpenRouterService {
   private static getModel(): string {
-    return useSettingsStore.getState().selectedOpenRouterModel || 'google/gemini-3.7-flash';
+    return useSettingsStore.getState().selectedOpenRouterModel || 'google/gemini-2.5-flash';
   }
 
   static async sendMessage(apiKey: string, proxyUrl: string | null, messages: {role: string, content: string, imageUri?: string, audioUri?: string}[]): Promise<string | null> {

@@ -312,10 +312,10 @@ export default function ChatScreen() {
           />
           <Text style={{ fontSize: 12, color: colors.textMuted }}>
             {activeAiProvider === 'gemini' 
-              ? `Google Gemini (${selectedGeminiModel || '3.7 Flash'})` 
+              ? `Google Gemini (${selectedGeminiModel || 'Flash Cloud'})` 
               : activeAiProvider === 'gigachat' 
                 ? `Сбер GigaChat (${selectedGigaChatModel || 'GigaChat'})` 
-                : `OpenRouter (${selectedOpenRouterModel?.split('/').pop() || 'Gemini 3.7'})`}
+                : (!openRouterKey ? 'OpenRouter (Gemini Flash Cloud)' : `OpenRouter (${selectedOpenRouterModel?.split('/').pop() || 'Flash'})`)}
           </Text>
         </View>
         <TouchableOpacity onPress={() => (navigation as any).navigate('Settings')} style={{ paddingHorizontal: 6, paddingVertical: 2 }}>

@@ -1094,23 +1094,22 @@ export default function SettingsScreen() {
             <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель Google Gemini</Text>
             <View style={{ flexDirection: 'row', gap: 6, marginVertical: 6 }}>
               {[
-                { id: 'gemini-3.7-flash', name: '3.7 Flash', tag: 'Флагман' },
-                { id: 'gemini-2.5-flash', name: '2.5 Flash', tag: 'Быстрая' },
+                { id: 'gemini-2.5-flash', name: '2.5 Flash', tag: 'Флагман' },
                 { id: 'gemini-2.0-flash', name: '2.0 Flash', tag: 'Базовая' },
               ].map(m => (
                 <TouchableOpacity
                   key={m.id}
                   style={[
                     styles.proxyModeButton,
-                    (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) && styles.proxyModeButtonActive,
+                    (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-2.5-flash')) && styles.proxyModeButtonActive,
                     { flex: 1, paddingVertical: 8 }
                   ]}
                   onPress={() => setSelectedGeminiModel(m.id)}
                 >
-                  <Text style={[styles.proxyModeText, (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) && styles.proxyModeTextActive]}>
+                  <Text style={[styles.proxyModeText, (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-2.5-flash')) && styles.proxyModeTextActive]}>
                     {m.name}
                   </Text>
-                  <Text style={{ fontSize: 10, color: (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-3.7-flash')) ? '#fff' : colors.textMuted }}>
+                  <Text style={{ fontSize: 10, color: (selectedGeminiModel === m.id || (!selectedGeminiModel && m.id === 'gemini-2.5-flash')) ? '#fff' : colors.textMuted }}>
                     {m.tag}
                   </Text>
                 </TouchableOpacity>
@@ -1213,8 +1212,8 @@ export default function SettingsScreen() {
             <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель OpenRouter</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 }}>
               {[
-                { id: 'google/gemini-3.7-flash', name: 'Gemini 3.7 Flash' },
                 { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+                { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
                 { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
                 { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3' },
               ].map(m => (
@@ -1222,27 +1221,29 @@ export default function SettingsScreen() {
                   key={m.id}
                   style={[
                     styles.proxyModeButton,
-                    selectedOpenRouterModel === m.id && styles.proxyModeButtonActive,
+                    (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeButtonActive,
                     { flexGrow: 1, minWidth: '45%', paddingVertical: 8 }
                   ]}
                   onPress={() => setSelectedOpenRouterModel(m.id)}
                 >
-                  <Text style={[styles.proxyModeText, selectedOpenRouterModel === m.id && styles.proxyModeTextActive]}>
+                  <Text style={[styles.proxyModeText, (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeTextActive]}>
                     {m.name}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-            <View style={[styles.inputContainer, { marginTop: 4 }]}>
-              <TextInput
-                style={styles.input}
-                placeholder="Или название другой модели (id)"
-                placeholderTextColor={colors.textMuted}
-                value={selectedOpenRouterModel}
-                onChangeText={setSelectedOpenRouterModel}
-                autoCapitalize="none"
-              />
-            </View>
+            {!!localOpenRouterKey && (
+              <View style={[styles.inputContainer, { marginTop: 4 }]}>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Или название другой модели (id)"
+                  placeholderTextColor={colors.textMuted}
+                  value={selectedOpenRouterModel}
+                  onChangeText={setSelectedOpenRouterModel}
+                  autoCapitalize="none"
+                />
+              </View>
+            )}
           </>
         )}
 
