@@ -14,6 +14,7 @@ import * as AuthSession from 'expo-auth-session';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import * as DocumentPicker from 'expo-document-picker';
+import * as Application from 'expo-application';
 import { changeLanguage } from '../i18n/i18n';
 
 const GOOGLE_CLIENT_ID = '926068433226-feq79p29gmgk8rf4i6r9qnqm9co91a9s.apps.googleusercontent.com';
@@ -1331,6 +1332,15 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           ))}
         </View>
+      </View>
+
+      <View style={{ alignItems: 'center', justifyContent: 'center', paddingVertical: spacing.lg, marginTop: spacing.sm, marginBottom: spacing.md }}>
+        <Text style={{ fontSize: 13, color: colors.textMuted, fontWeight: '600', letterSpacing: 0.3 }}>
+          SmartNotes AI
+        </Text>
+        <Text style={{ fontSize: 12, color: colors.textMuted, opacity: 0.8, marginTop: 4 }}>
+          Версия {Application.nativeApplicationVersion || '1.0.4'} (сборка {Application.nativeBuildVersion || '5'})
+        </Text>
       </View>
 
       {/* Модальное окно активации / восстановления подписки */}
