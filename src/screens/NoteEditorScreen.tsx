@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, Text, ScrollView, Image, Switch, Share, ActivityIndicator } from 'react-native';
+import { View, TextInput, StyleSheet, TouchableOpacity, KeyboardAvoidingView, Platform, Alert, Text, ScrollView, Image, Switch, Share, ActivityIndicator, AppState, AppStateStatus } from 'react-native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { RouteProp } from '@react-navigation/native';
 import { RootStackParamList } from '../navigation/AppNavigator';
@@ -66,54 +66,132 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const [sound, setSound] = useState<Audio.Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDictating, setIsDictating] = useState(false);
+  const isDictatingExplicitlyRef = React.useRef(false);
   const baseContentRef = React.useRef('');
+  const contentRef = React.useRef(content);
 
   useEffect(() => {
+    contentRef.current = content;
+  }, [content]);
+
+  const stopDictation = React.useCallback(() => {
+    isDictatingExplicitlyRef.current = false;
+    setIsDictating(false);
+    if (ExpoSpeechRecognitionModule) {
+      try {
+        if (typeof ExpoSpeechRecognitionModule.stop === 'function') {
+          ExpoSpeechRecognitionModule.stop();
+        }
+        if (typeof ExpoSpeechRecognitionModule.abort === 'function') {
+          ExpoSpeechRecognitionModule.abort();
+        }
+      } catch (e) {
+        console.warn('Error stopping speech recognition:', e);
+      }
+    }
+    if (contentRef.current) {
+      baseContentRef.current = contentRef.current;
+    }
+  }, []);
+
+  useEffect(() => {
+    // Stop any leftover speech recognition session on mount
+    stopDictation();
+
     if (!ExpoSpeechRecognitionModule || !ExpoSpeechRecognitionModule.addListener) return;
 
     const startSub = ExpoSpeechRecognitionModule.addListener('start', () => {
+      if (!isDictatingExplicitlyRef.current) {
+        stopDictation();
+        return;
+      }
       setIsDictating(true);
     });
 
     const endSub = ExpoSpeechRecognitionModule.addListener('end', () => {
+      isDictatingExplicitlyRef.current = false;
       setIsDictating(false);
+      baseContentRef.current = contentRef.current;
     });
 
     const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+      // Crucial: ignore incoming text if dictation was not explicitly started on this screen
+      if (!isDictatingExplicitlyRef.current) {
+        stopDictation();
+        return;
+      }
+
       const transcript = event?.results?.[0]?.transcript;
-      if (transcript) {
-        const base = baseContentRef.current.trim();
+      if (typeof transcript === 'string' && transcript.length > 0) {
+        let base = (baseContentRef.current || '').trim();
+        // Fallback: if base was empty but note already has content, preserve existing text
+        if (!base && contentRef.current && contentRef.current.trim()) {
+          base = contentRef.current.trim();
+          baseContentRef.current = contentRef.current;
+        }
         const newContent = base ? `${base} ${transcript}` : transcript;
         setContent(newContent);
+        contentRef.current = newContent;
       }
     });
 
     const errorSub = ExpoSpeechRecognitionModule.addListener('error', (event: any) => {
       console.warn('Speech recognition error:', event?.error, event?.message);
+      isDictatingExplicitlyRef.current = false;
       setIsDictating(false);
+      baseContentRef.current = contentRef.current;
     });
 
     return () => {
+      stopDictation();
       startSub?.remove?.();
       endSub?.remove?.();
       resultSub?.remove?.();
       errorSub?.remove?.();
     };
-  }, []);
+  }, [stopDictation]);
+
+  useEffect(() => {
+    const unsubBlur = navigation.addListener('blur', () => {
+      stopDictation();
+    });
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState !== 'active') {
+        stopDictation();
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      unsubBlur();
+      appStateSub.remove();
+      stopDictation();
+    };
+  }, [navigation, stopDictation]);
 
   const handleToggleDictation = async () => {
-    if (isDictating) {
-      ExpoSpeechRecognitionModule.stop();
-      setIsDictating(false);
+    if (isDictating || isDictatingExplicitlyRef.current) {
+      stopDictation();
       return;
     }
     try {
+      if (!ExpoSpeechRecognitionModule) {
+        Alert.alert(t('common.error'), 'Распознавание речи недоступно на данном устройстве');
+        return;
+      }
+      if (recording) {
+        await stopRecording();
+      }
       const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!result.granted) {
         Alert.alert(t('tabs.settings'), t('chat.mic_permission_required'));
         return;
       }
-      baseContentRef.current = content;
+      const currentContent = contentRef.current || content || '';
+      baseContentRef.current = currentContent;
+      isDictatingExplicitlyRef.current = true;
+      setIsDictating(true);
       const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'en-US';
       ExpoSpeechRecognitionModule.start({
         lang: speechLang,
@@ -121,10 +199,9 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
         maxAlternatives: 1,
         continuous: true,
       });
-      setIsDictating(true);
     } catch (e: any) {
       console.warn('Dictation error:', e);
-      setIsDictating(false);
+      stopDictation();
       Alert.alert(t('common.error'), e.message || t('chat.microphone_error'));
     }
   };
@@ -152,6 +229,8 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
       if (note) {
         setTitle(note.title);
         setContent(note.content);
+        contentRef.current = note.content;
+        baseContentRef.current = note.content;
         if (note.audioUri) setAudioUri(note.audioUri);
         if (note.reminderDate) setReminderDate(new Date(note.reminderDate));
         if (note.ringtoneUri) setRingtoneUri(note.ringtoneUri);
@@ -185,6 +264,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   }, [sound]);
 
   const startRecording = async () => {
+    stopDictation();
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status === 'granted') {
@@ -312,6 +392,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const { isPro } = require('../store/useAuthStore').useAuthStore();
 
   const handleAiAnalyze = async () => {
+    stopDictation();
     const { isPro, isProPlus, isTrialActive } = require('../store/useAuthStore').useAuthStore.getState();
     const { geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl } = useSettingsStore.getState();
 
@@ -394,6 +475,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const handleDelete = React.useCallback(() => {
     if (noteId) {
       const confirmDelete = () => {
+        stopDictation();
         isSavingRef.current = true;
         deleteNote(noteId);
         navigation.goBack();
@@ -418,7 +500,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
         );
       }
     }
-  }, [noteId, deleteNote, navigation]);
+  }, [noteId, deleteNote, navigation, stopDictation]);
 
   const handleExportPDF = React.useCallback(async () => {
     try {
@@ -505,6 +587,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   }, [title, content, imageUri, handleExportPDF]);
 
   const handleSave = async () => {
+    stopDictation();
     try {
       if (!title.trim() && !content.trim() && !audioUri && !reminderDate && !imageUri && attachments.length === 0) {
         navigation.goBack();
@@ -586,6 +669,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
 
   React.useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      stopDictation();
       if (isSavingRef.current) return;
       if (noteId) {
         const exists = useNoteStore.getState().notes.some(n => n.id === noteId);
@@ -608,7 +692,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
       }
     });
     return unsubscribe;
-  }, [navigation, title, content, audioUri, reminderDate, imageUri, category, isSecret, noteId, attachments, tags, tagInput]);
+  }, [navigation, title, content, audioUri, reminderDate, imageUri, category, isSecret, noteId, attachments, tags, tagInput, stopDictation]);
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -734,7 +818,13 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
           placeholder={t('notes.type_text')}
           placeholderTextColor={colors.textMuted}
           value={content}
-          onChangeText={setContent}
+          onChangeText={(text) => {
+            setContent(text);
+            contentRef.current = text;
+            if (!isDictatingExplicitlyRef.current) {
+              baseContentRef.current = text;
+            }
+          }}
           multiline
           textAlignVertical="top"
         />

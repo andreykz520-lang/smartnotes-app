@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Linking } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet, KeyboardAvoidingView, Platform, Alert, ActivityIndicator, Image, Linking, AppState, AppStateStatus } from 'react-native';
 import { colors, spacing, borderRadius } from '../theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useSettingsStore } from '../store/useSettingsStore';
@@ -36,66 +36,148 @@ export default function ChatScreen() {
   const [pendingAudioUri, setPendingAudioUri] = useState<string | null>(null);
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isDictating, setIsDictating] = useState(false);
+  const isDictatingExplicitlyRef = useRef(false);
   const baseInputRef = useRef('');
-  
+  const inputTextRef = useRef(inputText);
+
+  useEffect(() => {
+    inputTextRef.current = inputText;
+  }, [inputText]);
+
+  const stopDictation = React.useCallback(() => {
+    isDictatingExplicitlyRef.current = false;
+    setIsDictating(false);
+    if (ExpoSpeechRecognitionModule) {
+      try {
+        if (typeof ExpoSpeechRecognitionModule.stop === 'function') {
+          ExpoSpeechRecognitionModule.stop();
+        }
+        if (typeof ExpoSpeechRecognitionModule.abort === 'function') {
+          ExpoSpeechRecognitionModule.abort();
+        }
+      } catch (e) {
+        console.warn('Error stopping speech recognition:', e);
+      }
+    }
+    if (inputTextRef.current) {
+      baseInputRef.current = inputTextRef.current;
+    }
+  }, []);
+
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
+    // Stop any leftover speech recognition session on mount
+    stopDictation();
+
     if (!ExpoSpeechRecognitionModule || !ExpoSpeechRecognitionModule.addListener) return;
 
     const startSub = ExpoSpeechRecognitionModule.addListener('start', () => {
+      if (!isDictatingExplicitlyRef.current) {
+        stopDictation();
+        return;
+      }
       setIsDictating(true);
     });
 
     const endSub = ExpoSpeechRecognitionModule.addListener('end', () => {
+      isDictatingExplicitlyRef.current = false;
       setIsDictating(false);
+      baseInputRef.current = inputTextRef.current;
     });
 
     const resultSub = ExpoSpeechRecognitionModule.addListener('result', (event: any) => {
+      // Crucial: ignore incoming text if dictation was not explicitly started on this screen
+      if (!isDictatingExplicitlyRef.current) {
+        stopDictation();
+        return;
+      }
+
       const transcript = event?.results?.[0]?.transcript;
-      if (transcript) {
-        const base = baseInputRef.current.trim();
+      if (typeof transcript === 'string' && transcript.length > 0) {
+        let base = (baseInputRef.current || '').trim();
+        // Fallback: if base was empty but input already has content, preserve existing text
+        if (!base && inputTextRef.current && inputTextRef.current.trim()) {
+          base = inputTextRef.current.trim();
+          baseInputRef.current = inputTextRef.current;
+        }
         const newText = base ? `${base} ${transcript}` : transcript;
         setInputText(newText);
+        inputTextRef.current = newText;
       }
     });
 
     const errorSub = ExpoSpeechRecognitionModule.addListener('error', (event: any) => {
       console.warn('Speech recognition error:', event?.error, event?.message);
+      isDictatingExplicitlyRef.current = false;
       setIsDictating(false);
+      baseInputRef.current = inputTextRef.current;
     });
 
     return () => {
+      stopDictation();
       startSub?.remove?.();
       endSub?.remove?.();
       resultSub?.remove?.();
       errorSub?.remove?.();
     };
-  }, []);
+  }, [stopDictation]);
+
+  useEffect(() => {
+    const unsubBlur = navigation.addListener('blur', () => {
+      stopDictation();
+    });
+
+    const unsubBeforeRemove = navigation.addListener('beforeRemove', () => {
+      stopDictation();
+    });
+
+    const handleAppStateChange = (nextAppState: AppStateStatus) => {
+      if (nextAppState !== 'active') {
+        stopDictation();
+      }
+    };
+    const appStateSub = AppState.addEventListener('change', handleAppStateChange);
+
+    return () => {
+      unsubBlur();
+      unsubBeforeRemove();
+      appStateSub.remove();
+      stopDictation();
+    };
+  }, [navigation, stopDictation]);
 
   const handleToggleLiveDictation = async () => {
-    if (isDictating) {
-      ExpoSpeechRecognitionModule.stop();
-      setIsDictating(false);
+    if (isDictating || isDictatingExplicitlyRef.current) {
+      stopDictation();
       return;
     }
     try {
+      if (!ExpoSpeechRecognitionModule) {
+        Alert.alert(t('common.error'), 'Распознавание речи недоступно на данном устройстве');
+        return;
+      }
+      if (recording) {
+        await stopRecording();
+      }
       const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
       if (!result.granted) {
         Alert.alert('Микрофон', 'Разрешите доступ к микрофону для голосового ввода');
         return;
       }
-      baseInputRef.current = inputText;
+      const currentInput = inputTextRef.current || inputText || '';
+      baseInputRef.current = currentInput;
+      isDictatingExplicitlyRef.current = true;
+      setIsDictating(true);
       ExpoSpeechRecognitionModule.start({
         lang: 'ru-RU',
         interimResults: true,
         maxAlternatives: 1,
         continuous: true,
       });
-      setIsDictating(true);
     } catch (e: any) {
       console.warn('Dictation error:', e);
-      setIsDictating(false);
+      stopDictation();
       Alert.alert('Ошибка', 'Не удалось включить голосовой ввод: ' + (e.message || 'Проверьте микрофон'));
     }
   };
@@ -144,6 +226,7 @@ export default function ChatScreen() {
   };
 
   const startRecording = async () => {
+    stopDictation();
     try {
       const permission = await Audio.requestPermissionsAsync();
       if (permission.status === 'granted') {
@@ -174,10 +257,7 @@ export default function ChatScreen() {
 
   const sendMessage = async () => {
     try {
-      if (isDictating) {
-        try { ExpoSpeechRecognitionModule.stop(); } catch (e) {}
-        setIsDictating(false);
-      }
+      stopDictation();
 
       const textToSend = inputText.trim();
       const imgToSend = pendingImageUri;
@@ -383,7 +463,13 @@ export default function ChatScreen() {
               placeholder={isDictating ? "Слушаю вас... Говорите" : t('chat.type_message')}
               placeholderTextColor={isDictating ? colors.danger : colors.textMuted}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={(text) => {
+                setInputText(text);
+                inputTextRef.current = text;
+                if (!isDictatingExplicitlyRef.current) {
+                  baseInputRef.current = text;
+                }
+              }}
               multiline
               maxLength={1000}
             />
