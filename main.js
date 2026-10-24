@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell } = require('electron');
+const { app, BrowserWindow, shell, session } = require('electron');
 const http = require('http');
 const https = require('https');
 const fs = require('fs');
@@ -38,23 +38,42 @@ function startServer(callback) {
           if (dlRes.statusCode >= 300 && dlRes.statusCode < 400 && dlRes.headers.location) {
             const redirectClient = dlRes.headers.location.startsWith('https') ? https : http;
             redirectClient.get(dlRes.headers.location, (rRes) => {
-              res.writeHead(rRes.statusCode, {
-                'Content-Type': 'application/json; charset=utf-8',
-                'Access-Control-Allow-Origin': '*'
-              });
+              if (!res.headersSent) {
+                try {
+                  res.writeHead(rRes.statusCode, {
+                    'Content-Type': 'application/json; charset=utf-8',
+                    'Access-Control-Allow-Origin': '*'
+                  });
+                } catch (e) {}
+              }
               rRes.pipe(res);
+            }).on('error', (rErr) => {
+              if (!res.headersSent) {
+                try { res.writeHead(500, { 'Access-Control-Allow-Origin': '*' }); } catch (e) {}
+              }
+              try { res.end(rErr.message); } catch (e) {}
             });
             return;
           }
 
-          res.writeHead(dlRes.statusCode, {
-            'Content-Type': 'application/json; charset=utf-8',
-            'Access-Control-Allow-Origin': '*'
-          });
+          if (!res.headersSent) {
+            try {
+              res.writeHead(dlRes.statusCode, {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Access-Control-Allow-Origin': '*'
+              });
+            } catch (e) {}
+          }
           dlRes.pipe(res);
         }).on('error', (err) => {
-          res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
-          res.end(err.message);
+          if (!res.headersSent) {
+            try {
+              res.writeHead(500, { 'Access-Control-Allow-Origin': '*' });
+            } catch (e) {}
+          }
+          try {
+            res.end(err.message);
+          } catch (e) {}
         });
         return;
       }
@@ -177,6 +196,17 @@ function createWindow(port) {
 }
 
 app.whenReady().then(() => {
+  if (session && session.defaultSession) {
+    session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+      callback(true);
+    });
+    if (session.defaultSession.setPermissionCheckHandler) {
+      session.defaultSession.setPermissionCheckHandler((webContents, permission) => {
+        return true;
+      });
+    }
+  }
+
   startServer((port) => {
     createWindow(port);
   });

@@ -37,6 +37,7 @@ export default function ChatScreen() {
   const [recording, setRecording] = useState<Audio.Recording | null>(null);
   const [isDictating, setIsDictating] = useState(false);
   const isDictatingExplicitlyRef = useRef(false);
+  const webRecognitionRef = useRef<any>(null);
   const baseInputRef = useRef('');
   const inputTextRef = useRef(inputText);
 
@@ -47,6 +48,18 @@ export default function ChatScreen() {
   const stopDictation = React.useCallback(() => {
     isDictatingExplicitlyRef.current = false;
     setIsDictating(false);
+    if (webRecognitionRef.current) {
+      try {
+        if (typeof webRecognitionRef.current.abort === 'function') {
+          webRecognitionRef.current.abort();
+        } else if (typeof webRecognitionRef.current.stop === 'function') {
+          webRecognitionRef.current.stop();
+        }
+      } catch (e) {
+        console.warn('Error stopping web speech recognition:', e);
+      }
+      webRecognitionRef.current = null;
+    }
     if (ExpoSpeechRecognitionModule) {
       try {
         if (typeof ExpoSpeechRecognitionModule.stop === 'function') {
@@ -153,44 +166,92 @@ export default function ChatScreen() {
       return;
     }
     try {
-      if (!ExpoSpeechRecognitionModule) {
+      const SpeechRecognition = typeof window !== 'undefined'
+        ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+        : null;
+
+      if (!ExpoSpeechRecognitionModule && !SpeechRecognition) {
         Alert.alert(t('common.error'), 'Распознавание речи недоступно на данном устройстве');
         return;
       }
       if (recording) {
         await stopRecording();
       }
-      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!result.granted) {
-        Alert.alert('Микрофон', 'Разрешите доступ к микрофону для голосового ввода');
-        return;
-      }
+
       const currentInput = inputTextRef.current || inputText || '';
       baseInputRef.current = currentInput;
-      isDictatingExplicitlyRef.current = true;
-      setIsDictating(true);
-      ExpoSpeechRecognitionModule.start({
-        lang: 'ru-RU',
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: true,
-      });
+      const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'ru-RU';
+
+      if (ExpoSpeechRecognitionModule) {
+        const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!result.granted) {
+          Alert.alert('Микрофон', 'Разрешите доступ к микрофону для голосового ввода');
+          return;
+        }
+        isDictatingExplicitlyRef.current = true;
+        setIsDictating(true);
+        ExpoSpeechRecognitionModule.start({
+          lang: speechLang,
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: true,
+        });
+        return;
+      }
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = speechLang;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          isDictatingExplicitlyRef.current = true;
+          setIsDictating(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          if (!isDictatingExplicitlyRef.current) return;
+          let sessionTranscript = '';
+          for (let i = 0; i < event.results.length; ++i) {
+            sessionTranscript += event.results[i][0].transcript;
+          }
+          const trimmed = sessionTranscript.trim();
+          if (trimmed) {
+            let base = (baseInputRef.current || '').trim();
+            const newText = base ? `${base} ${trimmed}` : trimmed;
+            setInputText(newText);
+            inputTextRef.current = newText;
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Web speech recognition error:', event.error);
+          if (event.error !== 'no-speech') {
+            stopDictation();
+            Alert.alert(t('common.error'), event.message || event.error || t('chat.microphone_error'));
+          }
+        };
+
+        recognition.onend = () => {
+          isDictatingExplicitlyRef.current = false;
+          setIsDictating(false);
+          webRecognitionRef.current = null;
+          if (inputTextRef.current) {
+            baseInputRef.current = inputTextRef.current;
+          }
+        };
+
+        webRecognitionRef.current = recognition;
+        recognition.start();
+      }
     } catch (e: any) {
       console.warn('Dictation error:', e);
       stopDictation();
-      Alert.alert('Ошибка', 'Не удалось включить голосовой ввод: ' + (e.message || 'Проверьте микрофон'));
+      Alert.alert(t('common.error'), e.message || t('chat.microphone_error'));
     }
   };
-
-  useEffect(() => {
-    navigation.setOptions({
-      headerRight: () => (
-        <TouchableOpacity onPress={clearHistory} style={{ marginRight: 15 }}>
-          <Ionicons name="trash-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
-      ),
-    });
-  }, [navigation, clearHistory]);
 
   const pickImage = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();

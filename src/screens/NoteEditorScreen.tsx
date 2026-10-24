@@ -67,6 +67,7 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [isDictating, setIsDictating] = useState(false);
   const isDictatingExplicitlyRef = React.useRef(false);
+  const webRecognitionRef = React.useRef<any>(null);
   const baseContentRef = React.useRef('');
   const contentRef = React.useRef(content);
 
@@ -77,6 +78,18 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
   const stopDictation = React.useCallback(() => {
     isDictatingExplicitlyRef.current = false;
     setIsDictating(false);
+    if (webRecognitionRef.current) {
+      try {
+        if (typeof webRecognitionRef.current.abort === 'function') {
+          webRecognitionRef.current.abort();
+        } else if (typeof webRecognitionRef.current.stop === 'function') {
+          webRecognitionRef.current.stop();
+        }
+      } catch (e) {
+        console.warn('Error stopping web speech recognition:', e);
+      }
+      webRecognitionRef.current = null;
+    }
     if (ExpoSpeechRecognitionModule) {
       try {
         if (typeof ExpoSpeechRecognitionModule.stop === 'function') {
@@ -176,29 +189,86 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
       return;
     }
     try {
-      if (!ExpoSpeechRecognitionModule) {
+      const SpeechRecognition = typeof window !== 'undefined'
+        ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+        : null;
+
+      if (!ExpoSpeechRecognitionModule && !SpeechRecognition) {
         Alert.alert(t('common.error'), 'Распознавание речи недоступно на данном устройстве');
         return;
       }
       if (recording) {
         await stopRecording();
       }
-      const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-      if (!result.granted) {
-        Alert.alert(t('tabs.settings'), t('chat.mic_permission_required'));
-        return;
-      }
+
       const currentContent = contentRef.current || content || '';
       baseContentRef.current = currentContent;
-      isDictatingExplicitlyRef.current = true;
-      setIsDictating(true);
       const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'en-US';
-      ExpoSpeechRecognitionModule.start({
-        lang: speechLang,
-        interimResults: true,
-        maxAlternatives: 1,
-        continuous: true,
-      });
+
+      if (ExpoSpeechRecognitionModule) {
+        const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
+        if (!result.granted) {
+          Alert.alert(t('tabs.settings'), t('chat.mic_permission_required'));
+          return;
+        }
+        isDictatingExplicitlyRef.current = true;
+        setIsDictating(true);
+        ExpoSpeechRecognitionModule.start({
+          lang: speechLang,
+          interimResults: true,
+          maxAlternatives: 1,
+          continuous: true,
+        });
+        return;
+      }
+
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = speechLang;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+
+        recognition.onstart = () => {
+          isDictatingExplicitlyRef.current = true;
+          setIsDictating(true);
+        };
+
+        recognition.onresult = (event: any) => {
+          if (!isDictatingExplicitlyRef.current) return;
+          let sessionTranscript = '';
+          for (let i = 0; i < event.results.length; ++i) {
+            sessionTranscript += event.results[i][0].transcript;
+          }
+          const trimmed = sessionTranscript.trim();
+          if (trimmed) {
+            let base = (baseContentRef.current || '').trim();
+            const newContent = base ? `${base} ${trimmed}` : trimmed;
+            setContent(newContent);
+            contentRef.current = newContent;
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn('Web speech recognition error:', event.error);
+          if (event.error !== 'no-speech') {
+            stopDictation();
+            Alert.alert(t('common.error'), event.message || event.error || t('chat.microphone_error'));
+          }
+        };
+
+        recognition.onend = () => {
+          isDictatingExplicitlyRef.current = false;
+          setIsDictating(false);
+          webRecognitionRef.current = null;
+          if (contentRef.current) {
+            baseContentRef.current = contentRef.current;
+          }
+        };
+
+        webRecognitionRef.current = recognition;
+        recognition.start();
+      }
     } catch (e: any) {
       console.warn('Dictation error:', e);
       stopDictation();
