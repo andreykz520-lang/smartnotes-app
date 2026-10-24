@@ -115,6 +115,8 @@
     "export_pdf": "Export to PDF",
     "voice_input": "Voice Input",
     "voice_recording": "Recording audio...",
+    "listening": "Recording... Click again to transcribe",
+    "transcribing": "AI is transcribing audio...",
     "summary_title": "Summary:",
     "reminder_set": "Reminder:"
   },

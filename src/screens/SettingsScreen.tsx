@@ -1339,7 +1339,7 @@ export default function SettingsScreen() {
           SmartNotes AI
         </Text>
         <Text style={{ fontSize: 12, color: colors.textMuted, opacity: 0.8, marginTop: 4 }}>
-          Версия {Application.nativeApplicationVersion || '1.0.5'} (сборка {Application.nativeBuildVersion || '6'})
+          Версия {Application.nativeApplicationVersion || '1.0.5'} (сборка {Application.nativeBuildVersion || '7'})
         </Text>
       </View>
 

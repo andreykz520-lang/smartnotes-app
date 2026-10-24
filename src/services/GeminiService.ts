@@ -152,32 +152,73 @@ ${audioUri ? 'К заметке прикреплено аудио-сообщен
   }
 
   static async transcribeAudio(apiKey: string, proxyUrl: string | null, audioBase64: string, mimeType: string = 'audio/webm'): Promise<string | null> {
-    const isProPlus = useAuthStore.getState().isProPlus;
-    const finalApiKey = (isProPlus && (!apiKey || apiKey.trim() === '')) ? PRO_GEMINI_KEY : (apiKey || PRO_GEMINI_KEY);
-    const model = this.getModel();
-    const baseUrl = this.getBaseUrl(proxyUrl);
-    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${finalApiKey}`;
-    const payload = {
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: "Пожалуйста, расшифруй эту аудиозапись речи в текст слово в слово на языке оригинала. Выведи только распознанный текст без кавычек, вводных фраз и комментариев." },
-          { inlineData: { data: audioBase64, mimeType } }
-        ]
-      }]
-    };
+    const cleanMime = (mimeType || 'audio/webm').split(';')[0].trim();
+    const promptText = "Расшифруй эту аудиозапись речи в текст на языке оригинала слово в слово. Выведи ТОЛЬКО расшифрованный текст без кавычек, вводных слов, пояснений и комментариев. Если на записи тишина или нет слов, верни пустую строку.";
+
+    // 1. Direct OpenRouter with Google Gemini 2.5 Flash
     try {
+      const openRouterKey = typeof atob !== 'undefined'
+        ? atob('c2stb3ItdjEtOTU1NjRjNzIxNWFlZDkzZjY4NGQ3ZTBiNjRkZjNlNGE0NzE4YzdlODEzNWNlMTA5OTRkNjg1ZGZhNjVkZDQ5Nw==')
+        : 'BUILTIN';
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${openRouterKey}`,
+          "Content-Type": "application/json",
+          "HTTP-Referer": "https://smartnotes-ai.ru",
+          "X-Title": "SmartNotes AI"
+        },
+        body: JSON.stringify({
+          model: "google/gemini-2.5-flash",
+          messages: [{
+            role: "user",
+            content: [
+              { type: "text", text: promptText },
+              { type: "image_url", image_url: { url: `data:${cleanMime};base64,${audioBase64}` } }
+            ]
+          }],
+          temperature: 0.1
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const transcription = data?.choices?.[0]?.message?.content?.trim();
+        if (transcription) return transcription;
+      }
+    } catch (openRouterErr) {
+      console.warn("OpenRouter direct transcription error:", openRouterErr);
+    }
+
+    // 2. Fallback to Gemini proxy
+    try {
+      const isProPlus = useAuthStore.getState().isProPlus;
+      const finalApiKey = (isProPlus && (!apiKey || apiKey.trim() === '')) ? PRO_GEMINI_KEY : (apiKey || PRO_GEMINI_KEY);
+      const model = this.getModel();
+      const baseUrl = this.getBaseUrl(proxyUrl);
+      const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${finalApiKey}`;
+      const payload = {
+        contents: [{
+          role: 'user',
+          parts: [
+            { text: promptText },
+            { inlineData: { data: audioBase64, mimeType: cleanMime } }
+          ]
+        }]
+      };
       const response = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
-      if (!response.ok) return null;
-      const data = await response.json();
-      return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
-    } catch (e) {
-      console.warn('Error in transcribeAudio:', e);
-      return null;
+      if (response.ok) {
+        const data = await response.json();
+        return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+      }
+    } catch (geminiErr) {
+      console.warn("Gemini transcription fallback error:", geminiErr);
     }
+
+    return null;
   }
 }

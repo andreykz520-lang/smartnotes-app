@@ -115,6 +115,8 @@
     "export_pdf": "Exporter en PDF",
     "voice_input": "Saisie vocale",
     "voice_recording": "Enregistrement en cours...",
+    "listening": "Enregistrement... Cliquez à nouveau pour transcrire",
+    "transcribing": "L'IA transcrit l'audio...",
     "summary_title": "Résumé :",
     "reminder_set": "Rappel :"
   },

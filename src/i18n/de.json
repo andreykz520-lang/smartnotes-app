@@ -115,6 +115,8 @@
     "export_pdf": "Als PDF exportieren",
     "voice_input": "Spracheingabe",
     "voice_recording": "Audioaufnahme...",
+    "listening": "Aufnahme... Klicken Sie erneut zum Transkribieren",
+    "transcribing": "KI transkribiert Audio...",
     "summary_title": "Zusammenfassung:",
     "reminder_set": "Erinnerung:"
   },

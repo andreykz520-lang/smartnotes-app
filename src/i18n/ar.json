@@ -115,6 +115,8 @@
     "export_pdf": "تصدير إلى PDF",
     "voice_input": "إدخال صوتي",
     "voice_recording": "جاري تسجيل الصوت...",
+    "listening": "جارٍ التسجيل... اضغط مرة أخرى للنسخ",
+    "transcribing": "الذكاء الاصطناعي يقوم بنسخ الصوت...",
     "summary_title": "الملخص:",
     "reminder_set": "التذكير:"
   },

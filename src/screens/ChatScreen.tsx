@@ -263,6 +263,8 @@ export default function ChatScreen() {
                   setInputText(newText);
                   inputTextRef.current = newText;
                   baseInputRef.current = newText;
+                } else {
+                  Alert.alert('Голосовой ввод', 'Не удалось распознать речь или запись была слишком тихой');
                 }
               };
               reader.readAsDataURL(audioBlob);
@@ -617,7 +619,7 @@ export default function ChatScreen() {
             </TouchableOpacity>
             <TextInput
               style={[styles.input, isDictating && { borderColor: colors.danger, borderWidth: 1 }]}
-              placeholder={isDictating ? "Слушаю вас... Говорите" : t('chat.type_message')}
+              placeholder={isDictating ? "🔴 Идёт запись... Нажмите ещё раз для отправки" : (isTranscribing ? "⏳ ИИ расшифровывает голос..." : t('chat.type_message'))}
               placeholderTextColor={isDictating ? colors.danger : colors.textMuted}
               value={inputText}
               onChangeText={(text) => {

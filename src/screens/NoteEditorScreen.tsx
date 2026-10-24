@@ -286,6 +286,8 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
                   setContent(newContent);
                   contentRef.current = newContent;
                   baseContentRef.current = newContent;
+                } else {
+                  Alert.alert('Голосовой ввод', 'Не удалось распознать речь или запись была слишком тихой');
                 }
               };
               reader.readAsDataURL(audioBlob);
@@ -973,6 +975,13 @@ export default function NoteEditorScreen({ navigation, route }: Props) {
             <Ionicons name="radio" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.dictatingText}>🔴 {t('notes.listening')}</Text>
           </TouchableOpacity>
+        )}
+
+        {isTranscribing && (
+          <View style={[styles.dictatingBanner, { backgroundColor: '#2563eb' }]}>
+            <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
+            <Text style={styles.dictatingText}>⏳ {t('notes.transcribing')}</Text>
+          </View>
         )}
 
         <TextInput
