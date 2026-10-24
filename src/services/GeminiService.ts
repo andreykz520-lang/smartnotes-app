@@ -150,4 +150,34 @@ ${audioUri ? 'К заметке прикреплено аудио-сообщен
       throw new Error(e.message || 'Не удалось проанализировать заметку');
     }
   }
+
+  static async transcribeAudio(apiKey: string, proxyUrl: string | null, audioBase64: string, mimeType: string = 'audio/webm'): Promise<string | null> {
+    const isProPlus = useAuthStore.getState().isProPlus;
+    const finalApiKey = (isProPlus && (!apiKey || apiKey.trim() === '')) ? PRO_GEMINI_KEY : (apiKey || PRO_GEMINI_KEY);
+    const model = this.getModel();
+    const baseUrl = this.getBaseUrl(proxyUrl);
+    const url = `${baseUrl}/v1beta/models/${model}:generateContent?key=${finalApiKey}`;
+    const payload = {
+      contents: [{
+        role: 'user',
+        parts: [
+          { text: "Пожалуйста, расшифруй эту аудиозапись речи в текст слово в слово на языке оригинала. Выведи только распознанный текст без кавычек, вводных фраз и комментариев." },
+          { inlineData: { data: audioBase64, mimeType } }
+        ]
+      }]
+    };
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || null;
+    } catch (e) {
+      console.warn('Error in transcribeAudio:', e);
+      return null;
+    }
+  }
 }

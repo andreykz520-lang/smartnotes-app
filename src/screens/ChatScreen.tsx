@@ -38,6 +38,9 @@ export default function ChatScreen() {
   const [isDictating, setIsDictating] = useState(false);
   const isDictatingExplicitlyRef = useRef(false);
   const webRecognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<any>(null);
+  const audioChunksRef = useRef<any[]>([]);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const baseInputRef = useRef('');
   const inputTextRef = useRef(inputText);
 
@@ -48,6 +51,16 @@ export default function ChatScreen() {
   const stopDictation = React.useCallback(() => {
     isDictatingExplicitlyRef.current = false;
     setIsDictating(false);
+    if (mediaRecorderRef.current) {
+      try {
+        if (mediaRecorderRef.current.state !== 'inactive') {
+          mediaRecorderRef.current.stop();
+        }
+      } catch (e) {
+        console.warn('Error stopping media recorder:', e);
+      }
+      mediaRecorderRef.current = null;
+    }
     if (webRecognitionRef.current) {
       try {
         if (typeof webRecognitionRef.current.abort === 'function') {
@@ -166,30 +179,28 @@ export default function ChatScreen() {
       return;
     }
     try {
+      const isElectron = typeof window !== 'undefined' && (
+        Boolean((window as any).process?.versions?.electron) ||
+        navigator.userAgent.toLowerCase().includes('electron')
+      );
+
       const SpeechRecognition = typeof window !== 'undefined'
         ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
         : null;
 
-      if (!ExpoSpeechRecognitionModule && !SpeechRecognition) {
-        Alert.alert(t('common.error'), 'Распознавание речи недоступно на данном устройстве');
-        return;
-      }
-      if (recording) {
-        await stopRecording();
-      }
-
-      const currentInput = inputTextRef.current || inputText || '';
-      baseInputRef.current = currentInput;
-      const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'ru-RU';
-
+      // 1. Native mobile app
       if (ExpoSpeechRecognitionModule) {
+        if (recording) await stopRecording();
         const result = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
         if (!result.granted) {
           Alert.alert('Микрофон', 'Разрешите доступ к микрофону для голосового ввода');
           return;
         }
+        const currentInput = inputTextRef.current || inputText || '';
+        baseInputRef.current = currentInput;
         isDictatingExplicitlyRef.current = true;
         setIsDictating(true);
+        const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'ru-RU';
         ExpoSpeechRecognitionModule.start({
           lang: speechLang,
           interimResults: true,
@@ -199,7 +210,82 @@ export default function ChatScreen() {
         return;
       }
 
+      // 2. Request mic permission on Web/Electron
+      if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        let stream: MediaStream | null = null;
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        } catch (permErr: any) {
+          Alert.alert('Микрофон', 'Пожалуйста, разрешите доступ к микрофону в настройках браузера или системы');
+          return;
+        }
+
+        // 3. In Electron or browsers without SpeechRecognition: record audio & transcribe with Gemini
+        const hasMediaRecorder = typeof window !== 'undefined' && typeof (window as any).MediaRecorder !== 'undefined';
+        if (isElectron || !SpeechRecognition || (hasMediaRecorder && !('webkitSpeechRecognition' in window))) {
+          if (!stream) return;
+          const currentInput = inputTextRef.current || inputText || '';
+          baseInputRef.current = currentInput;
+          isDictatingExplicitlyRef.current = true;
+          setIsDictating(true);
+
+          audioChunksRef.current = [];
+          const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : (MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '');
+          const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+          mediaRecorderRef.current = recorder;
+
+          recorder.ondataavailable = (e: any) => {
+            if (e.data && e.data.size > 0) {
+              audioChunksRef.current.push(e.data);
+            }
+          };
+
+          recorder.onstop = async () => {
+            stream?.getTracks?.().forEach(t => t.stop());
+            const recordedChunks = audioChunksRef.current;
+            if (recordedChunks.length === 0) return;
+            const finalMime = recorder.mimeType || 'audio/webm';
+            const audioBlob = new Blob(recordedChunks, { type: finalMime });
+            setIsTranscribing(true);
+            try {
+              const reader = new FileReader();
+              reader.onloadend = async () => {
+                const base64Data = (reader.result as string)?.split(',')[1];
+                if (!base64Data) {
+                  setIsTranscribing(false);
+                  return;
+                }
+                const transcription = await GeminiService.transcribeAudio('', null, base64Data, finalMime.split(';')[0]);
+                setIsTranscribing(false);
+                if (transcription && transcription.trim()) {
+                  let base = (baseInputRef.current || '').trim();
+                  const newText = base ? `${base} ${transcription.trim()}` : transcription.trim();
+                  setInputText(newText);
+                  inputTextRef.current = newText;
+                  baseInputRef.current = newText;
+                }
+              };
+              reader.readAsDataURL(audioBlob);
+            } catch (err) {
+              console.warn('Transcription error:', err);
+              setIsTranscribing(false);
+            }
+          };
+
+          recorder.start();
+          return;
+        }
+
+        // For Web Speech API: release stream
+        stream.getTracks().forEach(t => t.stop());
+      }
+
+      // 4. Web browsers with SpeechRecognition
       if (SpeechRecognition) {
+        const currentInput = inputTextRef.current || inputText || '';
+        baseInputRef.current = currentInput;
+        const speechLang = ({ ru: 'ru-RU', en: 'en-US', de: 'de-DE', es: 'es-ES', fr: 'fr-FR', ar: 'ar-SA' } as any)[i18n.language] || 'ru-RU';
+
         const recognition = new SpeechRecognition();
         recognition.lang = speechLang;
         recognition.continuous = true;
@@ -227,14 +313,20 @@ export default function ChatScreen() {
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('Web speech recognition error:', event.error);
-          if (event.error !== 'no-speech') {
-            stopDictation();
-            Alert.alert(t('common.error'), event.message || event.error || t('chat.microphone_error'));
+          console.warn('Web speech recognition error:', event?.error);
+          if (event?.error === 'no-speech' || event?.error === 'aborted') {
+            return;
           }
+          stopDictation();
         };
 
         recognition.onend = () => {
+          if (isDictatingExplicitlyRef.current && webRecognitionRef.current) {
+            try {
+              webRecognitionRef.current.start();
+              return;
+            } catch (e) {}
+          }
           isDictatingExplicitlyRef.current = false;
           setIsDictating(false);
           webRecognitionRef.current = null;
@@ -517,7 +609,11 @@ export default function ChatScreen() {
               style={[styles.attachButton, isDictating && { backgroundColor: colors.danger, borderRadius: 16, width: 32, height: 32, justifyContent: 'center', alignItems: 'center' }]} 
               onPress={handleToggleLiveDictation}
             >
-              <Ionicons name={isDictating ? "mic" : "mic-outline"} size={22} color={isDictating ? "#fff" : colors.primary} />
+              {isTranscribing ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name={isDictating ? "mic" : "mic-outline"} size={22} color={isDictating ? "#fff" : colors.primary} />
+              )}
             </TouchableOpacity>
             <TextInput
               style={[styles.input, isDictating && { borderColor: colors.danger, borderWidth: 1 }]}
