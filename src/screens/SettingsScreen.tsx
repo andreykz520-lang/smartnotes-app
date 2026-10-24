@@ -1245,6 +1245,38 @@ export default function SettingsScreen() {
                 />
               </View>
             )}
+
+            <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>{t('settings.proxy_mode')}</Text>
+            <View style={styles.proxyModeContainer}>
+              <TouchableOpacity style={[styles.proxyModeButton, proxyMode === 'builtin' && styles.proxyModeButtonActive]} onPress={() => setProxyMode('builtin')}>
+                <Text style={[styles.proxyModeText, proxyMode === 'builtin' && styles.proxyModeTextActive]}>{t('settings.proxy_builtin')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.proxyModeButton, proxyMode === 'none' && styles.proxyModeButtonActive]} onPress={() => setProxyMode('none')}>
+                <Text style={[styles.proxyModeText, proxyMode === 'none' && styles.proxyModeTextActive]}>{t('settings.proxy_disabled')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.proxyModeButton, proxyMode === 'custom' && styles.proxyModeButtonActive]} onPress={() => setProxyMode('custom')}>
+                <Text style={[styles.proxyModeText, proxyMode === 'custom' && styles.proxyModeTextActive]}>{t('settings.proxy_custom')}</Text>
+              </TouchableOpacity>
+            </View>
+
+            {proxyMode === 'custom' && (
+              <>
+                <Text style={[styles.description, { fontSize: 12, marginBottom: spacing.xs }]}>
+                  {t('settings.custom_proxy_desc')}
+                </Text>
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="https://..."
+                    placeholderTextColor={colors.textMuted}
+                    value={localProxy}
+                    onChangeText={setLocalProxy}
+                    autoCapitalize="none"
+                    keyboardType="url"
+                  />
+                </View>
+              </>
+            )}
           </>
         )}
 
