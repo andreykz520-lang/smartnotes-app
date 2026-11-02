@@ -272,6 +272,9 @@ export default function SettingsScreen() {
     setGeminiKey(localKey.trim());
     setGigaChatKey(localGigaChatKey.trim());
     setOpenRouterKey(localOpenRouterKey.trim());
+    if (!localOpenRouterKey.trim()) {
+      setSelectedOpenRouterModel('google/gemini-2.5-flash');
+    }
     setProxyUrl(finalProxy);
     if (!silent) {
       Alert.alert('Успешно', 'Настройки ИИ сохранены!');
@@ -1211,39 +1214,49 @@ export default function SettingsScreen() {
             </View>
 
             <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>Модель OpenRouter</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 }}>
-              {[
-                { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
-                { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
-                { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
-                { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3' },
-              ].map(m => (
-                <TouchableOpacity
-                  key={m.id}
-                  style={[
-                    styles.proxyModeButton,
-                    (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeButtonActive,
-                    { flexGrow: 1, minWidth: '45%', paddingVertical: 8 }
-                  ]}
-                  onPress={() => setSelectedOpenRouterModel(m.id)}
-                >
-                  <Text style={[styles.proxyModeText, (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeTextActive]}>
-                    {m.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {!!localOpenRouterKey && (
-              <View style={[styles.inputContainer, { marginTop: 4 }]}>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Или название другой модели (id)"
-                  placeholderTextColor={colors.textMuted}
-                  value={selectedOpenRouterModel}
-                  onChangeText={setSelectedOpenRouterModel}
-                  autoCapitalize="none"
-                />
+            {!localOpenRouterKey ? (
+              <View style={[styles.inputContainer, { padding: 10, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 }]}>
+                <Ionicons name="lock-closed" size={16} color={colors.textMuted} />
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 13, fontWeight: '600', color: colors.text }}>Google Gemini 2.5 Flash (Самая быстрая и экономная)</Text>
+                  <Text style={{ fontSize: 11, color: colors.textMuted, marginTop: 2 }}>Встроенный доступ работает на оптимизированной модели Gemini 2.5 Flash. Чтобы переключиться на другие модели, введите собственный ключ OpenRouter выше.</Text>
+                </View>
               </View>
+            ) : (
+              <>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginVertical: 6 }}>
+                  {[
+                    { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash' },
+                    { id: 'google/gemini-2.0-flash-001', name: 'Gemini 2.0 Flash' },
+                    { id: 'deepseek/deepseek-chat', name: 'DeepSeek V3' },
+                    { id: 'meta-llama/llama-3.3-70b-instruct', name: 'Llama 3.3' },
+                  ].map(m => (
+                    <TouchableOpacity
+                      key={m.id}
+                      style={[
+                        styles.proxyModeButton,
+                        (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeButtonActive,
+                        { flexGrow: 1, minWidth: '45%', paddingVertical: 8 }
+                      ]}
+                      onPress={() => setSelectedOpenRouterModel(m.id)}
+                    >
+                      <Text style={[styles.proxyModeText, (selectedOpenRouterModel === m.id || (!selectedOpenRouterModel && m.id === 'google/gemini-2.5-flash')) && styles.proxyModeTextActive]}>
+                        {m.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={[styles.inputContainer, { marginTop: 4 }]}>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="Или название другой модели (id)"
+                    placeholderTextColor={colors.textMuted}
+                    value={selectedOpenRouterModel}
+                    onChangeText={setSelectedOpenRouterModel}
+                    autoCapitalize="none"
+                  />
+                </View>
+              </>
             )}
 
             <Text style={[styles.description, { fontWeight: 'bold', marginTop: spacing.sm }]}>{t('settings.proxy_mode')}</Text>

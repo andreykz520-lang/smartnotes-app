@@ -155,19 +155,20 @@ ${audioUri ? 'К заметке прикреплено аудио-сообщен
     const cleanMime = (mimeType || 'audio/webm').split(';')[0].trim();
     const promptText = "Расшифруй эту аудиозапись речи в текст на языке оригинала слово в слово. Выведи ТОЛЬКО расшифрованный текст без кавычек, вводных слов, пояснений и комментариев. Если на записи тишина или нет слов, верни пустую строку.";
 
-    // 1. Direct OpenRouter with Google Gemini 2.5 Flash
+    // 1. OpenRouter via Backend Proxy (Google Gemini 2.5 Flash)
     try {
-      const openRouterKey = typeof atob !== 'undefined'
-        ? atob('c2stb3ItdjEtOTU1NjRjNzIxNWFlZDkzZjY4NGQ3ZTBiNjRkZjNlNGE0NzE4YzdlODEzNWNlMTA5OTRkNjg1ZGZhNjVkZDQ5Nw==')
-        : 'BUILTIN';
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      const userOrKey = useSettingsStore.getState().openRouterKey?.trim();
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://smartnotes-ai.ru",
+        "X-Title": "SmartNotes AI"
+      };
+      if (userOrKey) {
+        headers["Authorization"] = `Bearer ${userOrKey}`;
+      }
+      const response = await fetch(`${API_URL}/api/proxy/openrouter/v1/chat/completions`, {
         method: "POST",
-        headers: {
-          "Authorization": `Bearer ${openRouterKey}`,
-          "Content-Type": "application/json",
-          "HTTP-Referer": "https://smartnotes-ai.ru",
-          "X-Title": "SmartNotes AI"
-        },
+        headers,
         body: JSON.stringify({
           model: "google/gemini-2.5-flash",
           messages: [{
@@ -187,7 +188,7 @@ ${audioUri ? 'К заметке прикреплено аудио-сообщен
         if (transcription) return transcription;
       }
     } catch (openRouterErr) {
-      console.warn("OpenRouter direct transcription error:", openRouterErr);
+      console.warn("OpenRouter proxy transcription error:", openRouterErr);
     }
 
     // 2. Fallback to Gemini proxy

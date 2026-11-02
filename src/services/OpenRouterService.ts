@@ -2,16 +2,24 @@ import * as FileSystem from 'expo-file-system';
 import { API_URL } from '../config';
 import { useSettingsStore } from '../store/useSettingsStore';
 
-const BUILTIN_KEY_FALLBACK = typeof atob !== 'undefined'
-  ? atob('c2stb3ItdjEtOTU1NjRjNzIxNWFlZDkzZjY4NGQ3ZTBiNjRkZjNlNGE0NzE4YzdlODEzNWNlMTA5OTRkNjg1ZGZhNjVkZDQ5Nw==')
-  : '';
+const CHEAPEST_MODEL = 'google/gemini-2.5-flash';
 
 export class OpenRouterService {
-  private static getModel(): string {
-    return useSettingsStore.getState().selectedOpenRouterModel || 'google/gemini-2.5-flash';
+  private static getModel(hasCustomKey: boolean): string {
+    if (!hasCustomKey) {
+      return CHEAPEST_MODEL;
+    }
+    const selected = useSettingsStore.getState().selectedOpenRouterModel;
+    if (selected && (selected.toLowerCase().includes('kimi') || selected.toLowerCase().includes('moonshot'))) {
+      return CHEAPEST_MODEL;
+    }
+    return selected || CHEAPEST_MODEL;
   }
 
   static async sendMessage(apiKey: string, proxyUrl: string | null, messages: {role: string, content: string, imageUri?: string, audioUri?: string}[]): Promise<string | null> {
+    const hasCustomKey = !!(apiKey && apiKey.trim() && apiKey.trim().length > 15);
+    const modelToUse = this.getModel(hasCustomKey);
+
     const openRouterMessages = await Promise.all(messages.map(async msg => {
       const content: any[] = [];
       if (msg.content) content.push({ type: 'text', text: msg.content });
@@ -38,14 +46,15 @@ export class OpenRouterService {
     }));
 
     try {
-      const effectiveKey = (apiKey && apiKey.trim()) ? apiKey.trim() : BUILTIN_KEY_FALLBACK;
       let baseUrl = `${API_URL}/api/proxy/openrouter/v1/chat/completions`;
-      if (proxyUrl === 'NONE') {
-        baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-      } else if (proxyUrl && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
-        baseUrl = proxyUrl.replace(/\/$/, '');
-        if (!baseUrl.includes('/chat/completions')) {
-          baseUrl += '/v1/chat/completions';
+      if (hasCustomKey) {
+        if (proxyUrl === 'NONE') {
+          baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        } else if (proxyUrl && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
+          baseUrl = proxyUrl.replace(/\/$/, '');
+          if (!baseUrl.includes('/chat/completions')) {
+            baseUrl += '/v1/chat/completions';
+          }
         }
       }
 
@@ -54,15 +63,15 @@ export class OpenRouterService {
         'HTTP-Referer': 'https://smartnotes-ai.ru', 
         'X-Title': 'SmartNotes AI', 
       };
-      if (effectiveKey) {
-        headers['Authorization'] = `Bearer ${effectiveKey}`;
+      if (hasCustomKey) {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
       }
 
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: this.getModel(),
+          model: modelToUse,
           messages: openRouterMessages,
         })
       });
@@ -111,14 +120,18 @@ ${noteText}`;
     }
 
     try {
-      const effectiveKey = (apiKey && apiKey.trim()) ? apiKey.trim() : BUILTIN_KEY_FALLBACK;
+      const hasCustomKey = !!(apiKey && apiKey.trim() && apiKey.trim().length > 15);
+      const modelToUse = this.getModel(hasCustomKey);
+
       let baseUrl = `${API_URL}/api/proxy/openrouter/v1/chat/completions`;
-      if (proxyUrl === 'NONE') {
-        baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
-      } else if (proxyUrl && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
-        baseUrl = proxyUrl.replace(/\/$/, '');
-        if (!baseUrl.includes('/chat/completions')) {
-          baseUrl += '/v1/chat/completions';
+      if (hasCustomKey) {
+        if (proxyUrl === 'NONE') {
+          baseUrl = 'https://openrouter.ai/api/v1/chat/completions';
+        } else if (proxyUrl && proxyUrl !== 'BUILTIN' && proxyUrl.trim() !== '' && !proxyUrl.includes('/api/proxy/gemini')) {
+          baseUrl = proxyUrl.replace(/\/$/, '');
+          if (!baseUrl.includes('/chat/completions')) {
+            baseUrl += '/v1/chat/completions';
+          }
         }
       }
 
@@ -127,15 +140,15 @@ ${noteText}`;
         'HTTP-Referer': 'https://smartnotes-ai.ru', 
         'X-Title': 'SmartNotes AI', 
       };
-      if (effectiveKey) {
-        headers['Authorization'] = `Bearer ${effectiveKey}`;
+      if (hasCustomKey) {
+        headers['Authorization'] = `Bearer ${apiKey.trim()}`;
       }
 
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify({
-          model: this.getModel(),
+          model: modelToUse,
           messages: [{ role: 'user', content }],
           temperature: 0.1,
           response_format: { type: 'json_object' }

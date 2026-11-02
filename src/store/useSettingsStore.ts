@@ -55,7 +55,12 @@ export const useSettingsStore = create<SettingsState>()(
       setActiveAiProvider: (provider) => set({ activeAiProvider: provider }),
       setSelectedGeminiModel: (model) => set({ selectedGeminiModel: model }),
       setSelectedGigaChatModel: (model) => set({ selectedGigaChatModel: model }),
-      setSelectedOpenRouterModel: (model) => set({ selectedOpenRouterModel: model }),
+      setSelectedOpenRouterModel: (model) => {
+        const clean = (model || '').toLowerCase().includes('kimi') || (model || '').toLowerCase().includes('moonshot')
+          ? 'google/gemini-2.5-flash'
+          : (model || 'google/gemini-2.5-flash');
+        set({ selectedOpenRouterModel: clean });
+      },
       setProxyUrl: (url) => set({ proxyUrl: url }),
       setPinCode: (pin) => set({ pinCode: pin }),
       setAutoSyncEnabled: (enabled) => set({ isAutoSyncEnabled: enabled }),
@@ -64,6 +69,13 @@ export const useSettingsStore = create<SettingsState>()(
     {
       name: 'smart-notes-settings',
       storage: createJSONStorage(() => AsyncStorage),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          if (!state.openRouterKey || state.selectedOpenRouterModel?.toLowerCase().includes('kimi') || state.selectedOpenRouterModel?.toLowerCase().includes('moonshot')) {
+            state.selectedOpenRouterModel = 'google/gemini-2.5-flash';
+          }
+        }
+      },
     }
   )
 );

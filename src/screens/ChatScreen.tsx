@@ -22,7 +22,7 @@ if (Platform.OS !== 'web') {
 }
 
 export default function ChatScreen() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const navigation = useNavigation();
   const { 
     geminiKey, gigaChatKey, openRouterKey, activeAiProvider, proxyUrl,
